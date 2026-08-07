@@ -247,12 +247,14 @@
 }
 
 @layer components {
-  .athena-bot-tint canvas {
+  .athena-bot-tint canvas,
+  .athena-bot-tint iframe {
     filter: saturate(1.22) contrast(1.08) brightness(1.02);
   }
 
-  .athena-bot-tint-blue canvas {
-    filter: saturate(1.22) contrast(1.08) brightness(1.02);
+  .athena-bot-tint-blue canvas,
+  .athena-bot-tint-blue iframe {
+    filter: saturate(1.18) contrast(1.06) hue-rotate(-8deg) brightness(1.04);
   }
 
   .athena-logo-spline canvas {
