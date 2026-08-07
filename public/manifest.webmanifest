@@ -1,0 +1,17 @@
+{
+  "name": "Athena AI - Physique 57 India Operations Intelligence",
+  "short_name": "Athena AI",
+  "description": "Internal operations intelligence for Physique 57 India member voice capture, ticketing, instructor reports, and studio follow-up.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/athena-ai-logo.png",
+      "sizes": "1512x1512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

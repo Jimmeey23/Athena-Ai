@@ -1,0 +1,2 @@
+- [AI model config](ai-model-upgrade.md) — Default OpenAI gpt-4o-mini, max 3000 tokens; Claude claude-haiku-4-5, max 3000; DeepSeek deepseek-v4-pro, max 3000.
+- [ChatInterface smart features](chat-smart-features.md) — urgency banner, context status strip, quick-start prompts, chip display logic added in ChatInterface.tsx.
