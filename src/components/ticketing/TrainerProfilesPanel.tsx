@@ -351,6 +351,15 @@ export const TrainerProfilesPanel: React.FC = () => {
     [profiles, selectedTrainer]
   );
   const reviewedProfiles = profiles.filter((profile) => profile.reviews.length > 0);
+  const reviewCount = profiles.reduce((sum, profile) => sum + profile.reviews.length, 0);
+  const averageReviewScore = reviewCount
+    ? Math.round(
+      profiles.reduce(
+        (sum, profile) => sum + profile.reviews.reduce((profileSum, review) => profileSum + review.scorePercent, 0),
+        0
+      ) / reviewCount
+    )
+    : 0;
   const ticketBySourceRef = useMemo(
     () => new Map(tickets.filter((ticket) => ticket.sourceRef).map((ticket) => [ticket.sourceRef, ticket])),
     [tickets]
@@ -384,10 +393,10 @@ export const TrainerProfilesPanel: React.FC = () => {
               </button>
               <div className="grid grid-cols-3 gap-2">
               <Metric label="Profiles" value={profiles.length} />
-              <Metric label="Reviewed" value={reviewedProfiles.length} />
+              <Metric label="Reviews" value={reviewCount} />
               <Metric
                 label="Avg Score"
-                value={reviewedProfiles.length ? `${Math.round(reviewedProfiles.reduce((sum, profile) => sum + profile.averageScorePercent, 0) / reviewedProfiles.length)}%` : '0%'}
+                value={reviewCount ? `${averageReviewScore}%` : '0%'}
               />
               </div>
             </div>
