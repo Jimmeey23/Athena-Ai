@@ -14,7 +14,6 @@ const DEFAULT_FORMS = [
   { formId: 'dSw2VkfdGqus', classType: 'barre' },
 ] as const;
 
-const TRAINER_PROFILE_OWNER = 'Trainer Profile';
 const MAX_LIMIT = 150;
 
 type ImportForm = {
@@ -41,6 +40,13 @@ type FilloutSubmissionList = {
   pageCount?: number;
 };
 
+type SupabaseLikeError = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -57,6 +63,26 @@ function performanceBand(scorePercent: number): string {
   if (scorePercent < 65) return 'High coaching priority';
   if (scorePercent < 80) return 'Development watch';
   return 'On-track performance';
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const supabaseError = error as SupabaseLikeError;
+    const parts = [
+      supabaseError.message,
+      supabaseError.code ? `code=${supabaseError.code}` : '',
+      supabaseError.details ? `details=${supabaseError.details}` : '',
+      supabaseError.hint ? `hint=${supabaseError.hint}` : '',
+    ].filter(Boolean);
+    if (parts.length) return parts.join(' | ');
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Unknown import failure';
+    }
+  }
+  return 'Unknown import failure';
 }
 
 function classLabel(classType: string | undefined, fallback: string): string {
@@ -118,48 +144,31 @@ async function fetchFilloutPage(
   };
 }
 
-function buildTicketRow(mapping: ReturnType<typeof mapFilloutTrainingEvaluation>, form: ImportForm) {
+function buildTrainerReviewRow(mapping: ReturnType<typeof mapFilloutTrainingEvaluation>, form: ImportForm) {
   const input = mapping.input;
   const scorePercent = mapping.record.scorePercent;
   const label = classLabel(form.classType, input.template);
-  const recordTimestamp = mapping.record.createdAt || mapping.receivedAt;
 
   return {
+    id: mapping.record.id,
+    source: mapping.record.source,
     source_ref: mapping.sourceRef,
-    title: `Instructor evaluation · ${input.trainer || 'Unknown'} · ${label}`,
-    description: buildTrainerEvaluationText(input),
-    category: 'Trainer Feedback',
-    sub_category: 'Knowledge and Competence',
-    priority: 'Low' as const,
-    status: 'Closed',
-    studio: clean(input.studio, 'Unspecified Studio'),
-    trainer: input.trainer || null,
-    class_type: form.classType || input.classType || null,
-    class_date_time: null,
-    member_name: null,
-    member_contact: null,
-    reported_by: 'Fillout historic import',
-    assigned_to: TRAINER_PROFILE_OWNER,
-    team: 'Training',
-    tags: [
-      'trainer-profile',
-      'instructor-evaluation',
-      'profile-only',
-      'fillout-historic-import',
-      label.toLowerCase().replace(/\s+/g, '-'),
-    ],
-    sentiment: scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Concern',
-    conversation_summary: [
-      `Historic instructor evaluation imported from Fillout for ${input.trainer || 'Unknown'} (${label}).`,
-      `Weighted score: ${scorePercent}% · ${performanceBand(scorePercent)}.`,
-      input.focusPoints ? `Primary focus: ${input.focusPoints}` : '',
-      input.goals ? `Target goal: ${input.goals}` : '',
-      'Recorded under Trainer Profiles only. No operational owner or SLA follow-up required.',
-    ].filter(Boolean).join('\n'),
+    trainer: mapping.record.trainer,
+    template: mapping.record.template,
+    studio: mapping.record.studio ?? null,
+    class_type: form.classType || mapping.record.classType || null,
+    review_period: mapping.record.reviewPeriod ?? null,
+    scores: mapping.record.scores,
+    feedback: mapping.record.feedback,
+    focus_points: mapping.record.focusPoints ?? null,
+    goals: mapping.record.goals ?? null,
+    raw_text: mapping.record.rawText ?? buildTrainerEvaluationText(input),
+    total_weightage: mapping.record.totalWeightage,
+    total_score: mapping.record.totalScore,
+    score_percent: scorePercent,
     metadata: {
       source_ref: mapping.sourceRef,
       source: 'fillout_historic_import',
-      profileOnly: true,
       fillout: {
         formId: form.formId,
         submissionId: mapping.submissionId,
@@ -167,17 +176,9 @@ function buildTicketRow(mapping: ReturnType<typeof mapFilloutTrainingEvaluation>
         receivedAt: mapping.receivedAt,
         answers: mapping.answers,
       },
-      trainerReview: mapping.record,
-      routing: {
-        department: 'Training',
-        assigned_to: TRAINER_PROFILE_OWNER,
-        status: 'Closed',
-        priority: 'Low',
-        profile_only: true,
-        routing_source: 'fillout_historic_import',
-      },
+      importSummary: `Historic instructor evaluation imported from Fillout for ${input.trainer || 'Unknown'} (${label}). Weighted score: ${scorePercent}% - ${performanceBand(scorePercent)}.`,
     },
-    sla_due_at: recordTimestamp,
+    created_at: mapping.record.createdAt || mapping.receivedAt,
   };
 }
 
@@ -251,13 +252,15 @@ Deno.serve(async (request) => {
       for (const submission of pageData.submissions) {
         try {
           const mapping = mapFilloutTrainingEvaluation({ submission, formId: form.formId });
-          const row = buildTicketRow(mapping, form);
+          const row = buildTrainerReviewRow(mapping, form);
 
           const existing = await supabase
-            .from('tickets')
+            .from('trainer_reviews')
             .select('id')
             .eq('source_ref', mapping.sourceRef)
             .maybeSingle();
+
+          if (existing.error) throw existing.error;
 
           if (existing.data && !refreshExisting) {
             formSummary.skippedDuplicates += 1;
@@ -268,39 +271,29 @@ Deno.serve(async (request) => {
           if (!dryRun) {
             if (existing.data) {
               const { error } = await supabase
-                .from('tickets')
+                .from('trainer_reviews')
                 .update(row)
                 .eq('id', existing.data.id);
               if (error) throw error;
               formSummary.updated += 1;
               summary.updated += 1;
             } else {
-              const { data, error } = await supabase.from('tickets').insert(row).select('id').single();
+              const { error } = await supabase.from('trainer_reviews').insert(row);
               if (error) throw error;
-              if (data?.id) {
-                await supabase.from('ticket_events').insert({
-                  ticket_id: data.id,
-                  event_type: 'trainer_evaluation_recorded',
-                  actor: 'Fillout historic import',
-                  to_value: TRAINER_PROFILE_OWNER,
-                  metadata: {
-                    source: 'fillout_historic_import',
-                    sourceRef: mapping.sourceRef,
-                    formId: form.formId,
-                    submissionId: mapping.submissionId,
-                    trainerReview: mapping.record,
-                  },
-                });
-              }
               formSummary.created += 1;
               summary.created += 1;
             }
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown import failure';
+          const message = formatError(error);
           formSummary.failed += 1;
           summary.failed += 1;
-          formSummary.errors.push({ error: message });
+          formSummary.errors.push({
+            sourceRef: error && typeof error === 'object' && 'sourceRef' in error
+              ? String((error as { sourceRef?: unknown }).sourceRef)
+              : undefined,
+            error: message,
+          });
         }
       }
 
