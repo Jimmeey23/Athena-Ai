@@ -233,7 +233,7 @@ as $$
   );
 $$;
 
-create or replace function public.can_access_ticket(ticket_created_by uuid, ticket_assigned_to text, ticket_team text)
+create or replace function public.can_access_ticket(ticket_created_by uuid, ticket_assigned_to text, ticket_team text default null)
 returns boolean
 language sql
 stable

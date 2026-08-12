@@ -18,7 +18,7 @@ using (
   and exists (
     select 1
     from public.tickets t
-    where t.id = split_part(storage.objects.name, '/', 1)
+    where t.id::text = split_part(storage.objects.name, '/', 1)
       and public.can_access_ticket(t.created_by, t.assigned_to, t.team)
   )
 );
@@ -32,7 +32,7 @@ with check (
   and exists (
     select 1
     from public.tickets t
-    where t.id = split_part(storage.objects.name, '/', 1)
+    where t.id::text = split_part(storage.objects.name, '/', 1)
       and public.can_access_ticket(t.created_by, t.assigned_to, t.team)
   )
 );
@@ -46,7 +46,7 @@ using (
   and exists (
     select 1
     from public.tickets t
-    where t.id = split_part(storage.objects.name, '/', 1)
+    where t.id::text = split_part(storage.objects.name, '/', 1)
       and public.can_access_ticket(t.created_by, t.assigned_to, t.team)
   )
 )
@@ -55,7 +55,7 @@ with check (
   and exists (
     select 1
     from public.tickets t
-    where t.id = split_part(storage.objects.name, '/', 1)
+    where t.id::text = split_part(storage.objects.name, '/', 1)
       and public.can_access_ticket(t.created_by, t.assigned_to, t.team)
   )
 );
@@ -69,7 +69,7 @@ using (
   and exists (
     select 1
     from public.tickets t
-    where t.id = split_part(storage.objects.name, '/', 1)
+    where t.id::text = split_part(storage.objects.name, '/', 1)
       and public.can_access_ticket(t.created_by, t.assigned_to, t.team)
   )
 );
