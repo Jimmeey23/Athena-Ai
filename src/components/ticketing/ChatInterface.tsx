@@ -3342,7 +3342,7 @@ const TemplatesAndExportTabs: React.FC<{
   disabled?: boolean;
   exportingPng?: boolean;
   messages: ChatMessage[];
-  ticketDraft: TicketDraft | null;
+  ticketDraft: DraftTicket | null;
   onExportText: () => void;
   onExportHtml: () => void;
   onExportPng: () => void | Promise<void>;
@@ -3536,7 +3536,7 @@ const ChatExportMenu: React.FC<{
   disabled?: boolean;
   exportingPng?: boolean;
   messages: ChatMessage[];
-  ticketDraft: TicketDraft | null;
+  ticketDraft: DraftTicket | null;
   onExportText: () => void;
   onExportHtml: () => void;
   onExportPng: () => void | Promise<void>;
