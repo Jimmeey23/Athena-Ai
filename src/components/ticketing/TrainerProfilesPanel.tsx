@@ -43,6 +43,7 @@ import {
   TrainerProfile,
   TrainerReviewRecord,
   buildTrainerProfilesFromReviews,
+  fetchTrainerReviewRecords,
   loadLocalTrainerReviewRecords,
   trainerReviewRecordsFromTickets,
 } from '@/lib/trainer-profiles';
@@ -297,14 +298,18 @@ const TrainerAISummary: React.FC<{ profile: TrainerProfile }> = ({ profile }) =>
 export const TrainerProfilesPanel: React.FC = () => {
   const { tickets } = useTickets();
   const [localReviews, setLocalReviews] = useState<TrainerReviewRecord[]>(() => loadLocalTrainerReviewRecords());
+  const [remoteReviews, setRemoteReviews] = useState<TrainerReviewRecord[]>([]);
+  const [remoteError, setRemoteError] = useState('');
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState<string>('');
   const [activeReviewKey, setActiveReviewKey] = useState<string>('');
   const profiles = useMemo<TrainerProfile[]>(
     () => buildTrainerProfilesFromReviews([
+      ...remoteReviews,
       ...trainerReviewRecordsFromTickets(tickets),
       ...localReviews,
     ]),
-    [localReviews, tickets]
+    [localReviews, remoteReviews, tickets]
   );
 
   useEffect(() => {
@@ -316,6 +321,22 @@ export const TrainerProfilesPanel: React.FC = () => {
       window.removeEventListener('storage', refresh);
     };
   }, []);
+
+  const refreshRemoteReviews = React.useCallback(async () => {
+    setRemoteLoading(true);
+    setRemoteError('');
+    try {
+      setRemoteReviews(await fetchTrainerReviewRecords());
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : 'Unable to load trainer reviews');
+    } finally {
+      setRemoteLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRemoteReviews();
+  }, [refreshRemoteReviews]);
 
   useEffect(() => {
     if (!selectedTrainer && profiles[0]) setSelectedTrainer(profiles[0].trainer);
@@ -348,14 +369,27 @@ export const TrainerProfilesPanel: React.FC = () => {
               </div>
               <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Trainer Profiles</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Assessment history, score trends, coaching focus, and criterion-level performance by instructor.</p>
+              {remoteError && (
+                <p className="mt-1 text-xs font-medium text-rose-600">Trainer review load failed: {remoteError}</p>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void refreshRemoteReviews()}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:border-blue-200 hover:text-blue-600"
+                title="Refresh trainer reviews"
+              >
+                {remoteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </button>
+              <div className="grid grid-cols-3 gap-2">
               <Metric label="Profiles" value={profiles.length} />
               <Metric label="Reviewed" value={reviewedProfiles.length} />
               <Metric
                 label="Avg Score"
                 value={reviewedProfiles.length ? `${Math.round(reviewedProfiles.reduce((sum, profile) => sum + profile.averageScorePercent, 0) / reviewedProfiles.length)}%` : '0%'}
               />
+              </div>
             </div>
           </div>
         </div>

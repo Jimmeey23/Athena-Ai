@@ -1,0 +1,9 @@
+# External webhook endpoints (Fillout, Zite) cannot send a Supabase JWT.
+# Disable JWT verification for these so the platform gateway doesn't 401
+# the request before it reaches the function's own secret-header check.
+
+[functions.fillout-training-evaluation-webhook]
+verify_jwt = false
+
+[functions.zite-training-assessment-webhook]
+verify_jwt = false

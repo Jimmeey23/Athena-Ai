@@ -1,6 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import {
-  buildTrainerEvaluationText,
   buildTrainerReviewRecord,
   type TrainerEvaluationInput,
   type TrainerEvaluationScore,
@@ -55,12 +54,6 @@ function clean(value: unknown, fallback = ''): string {
 function score(value: unknown): number {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function performanceBand(scorePercent: number): string {
-  if (scorePercent < 65) return 'High coaching priority';
-  if (scorePercent < 80) return 'Development watch';
-  return 'On-track performance';
 }
 
 function templateFromSession(sessionName?: string): TrainerReviewTemplate {
@@ -137,74 +130,42 @@ Deno.serve(async (request) => {
   });
 
   const row = {
+    id: record.id,
+    source: 'zite',
     source_ref: sourceRef,
-    title: `Instructor evaluation · ${input.trainer} · ${input.classType || input.template}`,
-    description: buildTrainerEvaluationText(input),
-    category: 'Trainer Feedback',
-    sub_category: 'Knowledge and Competence',
-    priority: 'Low' as const,
-    status: 'Closed',
+    trainer: record.trainer,
+    template: record.template,
     studio: clean(input.studio, 'Unspecified Studio'),
-    trainer: input.trainer,
     class_type: input.classType || null,
-    class_date_time: payload.classDate || null,
-    member_name: null,
-    member_contact: null,
-    reported_by: clean(payload.evaluatorName, 'Zite assessment'),
-    assigned_to: 'Trainer Profile',
-    team: 'Training',
-    tags: ['trainer-profile', 'instructor-evaluation', 'profile-only', 'zite-assessment'],
-    sentiment: record.scorePercent >= 80 ? 'Positive' : record.scorePercent >= 65 ? 'Neutral' : 'Concern',
-    conversation_summary: [
-      `Zite instructor evaluation submitted for ${input.trainer} (${input.classType || input.template}).`,
-      `Weighted score: ${record.scorePercent}% · ${performanceBand(record.scorePercent)}.`,
-      input.focusPoints ? `Primary focus: ${input.focusPoints}` : '',
-      input.goals ? `Target goal: ${input.goals}` : '',
-      'Recorded under Trainer Profiles only. No operational owner or SLA follow-up required.',
-    ].filter(Boolean).join('\n'),
+    review_period: input.reviewPeriod || null,
+    scores: record.scores,
+    feedback: record.feedback || null,
+    focus_points: record.focusPoints || null,
+    goals: record.goals || null,
+    raw_text: record.rawText || null,
+    total_weightage: record.totalWeightage,
+    total_score: record.totalScore,
+    score_percent: record.scorePercent,
     metadata: {
       source_ref: sourceRef,
       source: 'zite_training_assessment',
-      profileOnly: true,
       zite: {
         recordId: ziteId,
         evaluatorName: payload.evaluatorName,
         sections: payload.sections,
       },
       trainerReview: record,
-      routing: {
-        department: 'Training',
-        assigned_to: 'Trainer Profile',
-        status: 'Closed',
-        priority: 'Low',
-        profile_only: true,
-        routing_source: 'zite_training_assessment',
-      },
     },
-    sla_due_at: new Date().toISOString(),
+    created_at: record.createdAt,
   };
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const existing = await supabase.from('tickets').select('id').eq('source_ref', sourceRef).maybeSingle();
-
-  if (existing.data) {
-    const { data, error } = await supabase.from('tickets').update(row).eq('id', existing.data.id).select('*').single();
-    if (error) return json({ error: error.message }, 500);
-    return json({ created: false, duplicate: true, refreshed: true, sourceRef, ticket: data, trainerReview: record });
-  }
-
-  const { data, error } = await supabase.from('tickets').insert(row).select('*').single();
+  const { data, error } = await supabase
+    .from('trainer_reviews')
+    .upsert(row, { onConflict: 'source_ref' })
+    .select('*')
+    .single();
   if (error) return json({ error: error.message }, 500);
 
-  if (data?.id) {
-    await supabase.from('ticket_events').insert({
-      ticket_id: data.id,
-      event_type: 'trainer_evaluation_recorded',
-      actor: 'Zite assessment',
-      to_value: 'Trainer Profile',
-      metadata: { source: 'zite_training_assessment', sourceRef, ziteRecordId: ziteId, trainerReview: record },
-    });
-  }
-
-  return json({ created: true, duplicate: false, sourceRef, ticket: data, trainerReview: record });
+  return json({ recorded: true, sourceRef, trainerReview: record, row: data });
 });

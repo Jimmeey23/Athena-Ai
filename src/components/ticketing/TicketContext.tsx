@@ -35,6 +35,7 @@ import {
   ticketRequiresResolution,
 } from '@/lib/ticket-approved-creation';
 import { findRelatedSubmittedTickets, type DuplicateTicketContext } from '@/lib/ticket-duplicate-matching';
+import { isTrainerEvaluationProfileOnly } from '@/lib/trainer-profiles';
 import {
   ApprovedTicketDraft,
   ManualTicketInput,
@@ -600,6 +601,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [visibleIdentityValues]);
 
   const canSeeTicket = useCallback((ticket: Ticket) => {
+    if (isTrainerEvaluationProfileOnly(ticket)) return true;
     return canAccessTicketForIdentity({
       accessRole,
       identityValues: visibleIdentityValues,

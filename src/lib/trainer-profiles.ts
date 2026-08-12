@@ -19,6 +19,26 @@ export {
 };
 export type { TrainerEvaluationInput, TrainerEvaluationScore, TrainerReviewRecord, TrainerReviewTemplate };
 
+interface DbTrainerReviewRow {
+  id: string;
+  source?: string | null;
+  source_ref?: string | null;
+  trainer: string;
+  template: TrainerReviewTemplate;
+  studio?: string | null;
+  class_type?: string | null;
+  review_period?: string | null;
+  scores?: TrainerEvaluationScore[] | null;
+  feedback?: string | null;
+  focus_points?: string | null;
+  goals?: string | null;
+  raw_text?: string | null;
+  total_weightage?: number | null;
+  total_score?: number | null;
+  score_percent?: number | null;
+  created_at: string;
+}
+
 export interface TrainerProfile {
   trainer: string;
   reviews: TrainerReviewRecord[];
@@ -93,6 +113,42 @@ export function loadLocalTrainerReviewRecords(): TrainerReviewRecord[] {
   } catch {
     return [];
   }
+}
+
+function trainerReviewRecordFromRow(row: DbTrainerReviewRow): TrainerReviewRecord | null {
+  if (!row.trainer || !row.template || !Array.isArray(row.scores)) return null;
+  return {
+    id: row.id,
+    trainer: row.trainer,
+    template: row.template,
+    studio: row.studio || undefined,
+    classType: row.class_type || undefined,
+    reviewPeriod: row.review_period || undefined,
+    scores: row.scores,
+    feedback: row.feedback || '',
+    focusPoints: row.focus_points || undefined,
+    goals: row.goals || undefined,
+    rawText: row.raw_text || undefined,
+    createdAt: row.created_at,
+    totalWeightage: Number(row.total_weightage || row.scores.reduce((sum, item) => sum + item.weightage, 0)),
+    totalScore: Number(row.total_score || row.scores.reduce((sum, item) => sum + item.score, 0)),
+    scorePercent: Number(row.score_percent || 0),
+    source: row.source || 'trainer_reviews',
+    sourceRef: row.source_ref || row.id,
+  };
+}
+
+export async function fetchTrainerReviewRecords(): Promise<TrainerReviewRecord[]> {
+  const { backendSupabase } = await import('@/lib/backend-supabase');
+  const { data, error } = await backendSupabase
+    .from('trainer_reviews')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return ((data || []) as DbTrainerReviewRow[])
+    .map(trainerReviewRecordFromRow)
+    .filter((record): record is TrainerReviewRecord => Boolean(record));
 }
 
 export function trainerReviewRecordsFromTickets(tickets: Ticket[]): TrainerReviewRecord[] {
