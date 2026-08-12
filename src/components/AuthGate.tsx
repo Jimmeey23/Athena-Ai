@@ -391,7 +391,7 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
             {[
               { icon: '🔐', text: 'Protected with Supabase · encrypted in transit' },
               { icon: '🤖', text: 'Athena AI · Claude-powered ticket intelligence' },
-              { icon: '📍', text: 'Mumbai · Kemps Corner · Bengaluru · Gurgaon' },
+              { icon: '📍', text: 'Mumbai · Kemps Corner · Bengaluru' },
             ].map((item) => (
               <div key={item.text} className="auth-feature-row flex items-center gap-2.5">
                 <span className="text-base leading-none">{item.icon}</span>

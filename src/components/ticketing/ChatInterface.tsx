@@ -376,7 +376,7 @@ function getDynamicStarters(context: Partial<{ studio: string; trainer: string; 
     'Equipment issue — bike broken at Bengaluru',
     'Instructor arrived late for the barre class',
     'Membership package expired before last class',
-    'Front desk conflict at Gurgaon — follow up needed',
+    'Front desk conflict at Bandra studio — follow up needed',
     'Member slipped near the reception area',
     'Class was double-booked — members turned away',
     'Sound system failure during powercycle class',
