@@ -116,6 +116,13 @@ const scoreTextColor = (score: number) => {
   return 'text-rose-700';
 };
 
+const scoreTextColorDark = (score: number) => {
+  if (score >= 90) return 'text-emerald-300';
+  if (score >= 80) return 'text-cyan-300';
+  if (score >= 70) return 'text-amber-300';
+  return 'text-rose-300';
+};
+
 function criterionPercent(score: number, weightage: number) {
   return weightage ? Math.max(0, Math.min(100, Math.round((score / weightage) * 100))) : 0;
 }
@@ -525,21 +532,22 @@ const TrainerProfileDetail: React.FC<{
 
   return (
     <div className="mx-auto max-w-[1560px] px-4 py-5 sm:px-5">
-      <div className="overflow-hidden rounded-[28px] border border-border/80 bg-card shadow-[0_28px_100px_rgba(15,23,42,0.10)]">
-        <div className="border-b border-border bg-gradient-to-r from-white via-white to-blue-50/60 p-5">
+      <div className="overflow-hidden rounded-[28px] border border-slate-800/80 bg-slate-950 text-slate-100 shadow-[0_28px_100px_rgba(2,6,23,0.45)]">
+        <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(6,182,212,0.22),_transparent_32%),linear-gradient(135deg,_#020617,_#0f172a_48%,_#111827)] p-5">
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent" />
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-              <div className="rounded-[24px] border border-blue-100 bg-blue-50/80 p-1.5 shadow-[0_18px_38px_rgba(37,99,235,0.10)]">
+              <div className="rounded-[24px] border border-cyan-300/20 bg-white/8 p-1.5 shadow-[0_0_32px_rgba(6,182,212,0.16)]">
                 <TrainerImage name={profile.trainer} size="lg" />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-2xl font-semibold tracking-tight text-foreground">{profile.trainer}</h3>
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">
+                  <h3 className="text-2xl font-semibold tracking-tight text-white">{profile.trainer}</h3>
+                  <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-200">
                     {profile.reviews.length} assessment{profile.reviews.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">Latest review: {formatDate(profile.latestReviewAt)}</p>
+                <p className="mt-1 text-xs text-slate-400">Executive performance report · latest review {formatDate(profile.latestReviewAt)}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <ProfilePill icon={<ClipboardList className="h-3.5 w-3.5" />} label={`${profile.reviews.length} assessment${profile.reviews.length === 1 ? '' : 's'}`} />
                   <ProfilePill icon={<Award className="h-3.5 w-3.5" />} label={`Best score ${highScore}%`} />
@@ -548,27 +556,27 @@ const TrainerProfileDetail: React.FC<{
                 </div>
               </div>
             </div>
-            <div className={`min-w-40 rounded-3xl border px-5 py-4 text-right shadow-[0_18px_42px_rgba(37,99,235,0.10)] ${scoreTone(profile.averageScorePercent)}`}>
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em]">Profile average</div>
-              <div className="mt-1 text-4xl font-semibold tracking-tight">{profile.averageScorePercent}%</div>
-              <div className="mt-1 text-[11px] font-bold">{scoreBand(profile.averageScorePercent)}</div>
+            <div className="min-w-40 rounded-3xl border border-white/10 bg-white/10 px-5 py-4 text-right shadow-[0_18px_42px_rgba(6,182,212,0.12)] backdrop-blur">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Profile average</div>
+              <div className="mt-1 text-4xl font-semibold tracking-tight text-white">{profile.averageScorePercent}%</div>
+              <div className={`mt-1 text-[11px] font-bold ${scoreTextColorDark(profile.averageScorePercent)}`}>{scoreBand(profile.averageScorePercent)}</div>
             </div>
           </div>
         </div>
 
-        <div className="border-b border-border px-5 py-3">
+        <div className="border-b border-white/10 bg-slate-900/70 px-5 py-3">
           <TrainerAISummary profile={profile} />
         </div>
 
         {activeReview && (
-          <div className="space-y-5 p-5">
+          <div className="space-y-5 bg-[radial-gradient(circle_at_90%_8%,_rgba(139,92,246,0.13),_transparent_30%),linear-gradient(180deg,_#020617,_#0f172a)] p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <TrendingUp className="h-4 w-4 text-cyan-300" />
                 {activeReviewKey ? 'Selected Assessment Drilldown' : 'Latest Weighted Review'}
               </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-                <CalendarDays className="h-3.5 w-3.5 text-blue-600" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                <CalendarDays className="h-3.5 w-3.5 text-cyan-300" />
                 {formatReviewPeriod(activeReview.reviewPeriod)}
               </div>
             </div>
@@ -576,36 +584,36 @@ const TrainerProfileDetail: React.FC<{
             <DrilldownAnalytics review={activeReview} profile={profile} rows={activeRows} mounted={mounted} />
 
             <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <div className="rounded-2xl border border-border bg-muted/70 p-4">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  <BarChart3 className="h-4 w-4 text-blue-600" />
-                  Radar
+              <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_18px_46px_rgba(0,0,0,0.24)] backdrop-blur">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  <BarChart3 className="h-4 w-4 text-cyan-300" />
+                  Capability Radar
                 </div>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={chartRows}>
-                      <PolarGrid stroke="#dbeafe" />
-                      <PolarAngleAxis dataKey="criterion" tick={{ fontSize: 10, fill: '#64748b' }} />
-                      <Radar dataKey="percent" stroke="#2563eb" fill="#60a5fa" fillOpacity={0.32} />
+                      <PolarGrid stroke="rgba(148,163,184,0.28)" />
+                      <PolarAngleAxis dataKey="criterion" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <Radar dataKey="percent" stroke="#22d3ee" fill="#06b6d4" fillOpacity={0.28} />
                       <Tooltip formatter={(value, _name, props) => [`${value}%`, props.payload.fullCriterion]} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  <Activity className="h-4 w-4 text-blue-600" />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_18px_46px_rgba(0,0,0,0.24)] backdrop-blur">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  <Activity className="h-4 w-4 text-cyan-300" />
                   Criterion Breakdown
                 </div>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartRows} layout="vertical" margin={{ left: 12, right: 18, top: 4, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
-                      <YAxis type="category" dataKey="criterion" width={118} tick={{ fontSize: 10, fill: '#475569' }} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148,163,184,0.18)" />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <YAxis type="category" dataKey="criterion" width={118} tick={{ fontSize: 10, fill: '#cbd5e1' }} />
                       <Tooltip formatter={(value, _name, props) => [`${value}%`, `${props.payload.fullCriterion}: ${props.payload.score}/${props.payload.weightage}`]} />
-                      <Bar dataKey="percent" fill="#2563eb" radius={[0, 6, 6, 0]} />
+                      <Bar dataKey="percent" fill="#22d3ee" radius={[0, 6, 6, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -618,9 +626,9 @@ const TrainerProfileDetail: React.FC<{
               <InsightBlock title="Goals" value={activeReview.goals} />
             </div>
 
-            <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-[0_18px_44px_rgba(0,0,0,0.24)]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                <thead className="bg-white/[0.06] text-[10px] uppercase tracking-[0.16em] text-slate-400">
                   <tr>
                     <th className="px-3 py-2 font-bold">Criterion</th>
                     <th className="px-3 py-2 text-right font-bold">Score</th>
@@ -628,19 +636,19 @@ const TrainerProfileDetail: React.FC<{
                     <th className="px-3 py-2 font-bold">Band</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border bg-card">
+                <tbody className="divide-y divide-white/10 bg-slate-950/30">
                   {activeRows.map((item) => {
                     const percent = item.percent;
                     return (
                       <tr key={item.category}>
-                        <td className="px-3 py-2 font-medium text-foreground">{item.category}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-foreground">{item.score.toFixed(1)} / {item.weightage}</td>
+                        <td className="px-3 py-2 font-medium text-slate-100">{item.category}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-100">{item.score.toFixed(1)} / {item.weightage}</td>
                         <td className="px-3 py-2">
                           <div className="flex items-center justify-end gap-2">
-                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
                               <div className={`h-full rounded-full ${scoreColor(percent)}`} style={{ width: `${percent}%` }} />
                             </div>
-                            <span className="w-9 text-right font-bold text-foreground">{percent}%</span>
+                            <span className="w-9 text-right font-bold text-slate-100">{percent}%</span>
                           </div>
                         </td>
                         <td className="px-3 py-2"><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${scoreTone(percent)}`}>{scoreBand(percent)}</span></td>
@@ -652,15 +660,15 @@ const TrainerProfileDetail: React.FC<{
             </div>
 
             {trendRows.length > 1 && (
-              <div className="rounded-3xl border border-border bg-card p-4 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Recent Assessment Trend</div>
+              <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.24)]">
+                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Recent Assessment Trend</div>
                 <div className="flex items-end gap-1">
                   {trendRows.map((row) => (
                     <div key={`${row.label}-${row.date}`} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="flex h-20 w-full items-end rounded bg-muted">
+                      <div className="flex h-20 w-full items-end rounded bg-white/10">
                         <div className={`w-full rounded-t ${scoreColor(row.score)}`} style={{ height: `${row.score}%` }} />
                       </div>
-                      <div className="text-[10px] font-bold text-muted-foreground">{row.score}%</div>
+                      <div className="text-[10px] font-bold text-slate-400">{row.score}%</div>
                     </div>
                   ))}
                 </div>
@@ -752,8 +760,8 @@ const TrainerProfileDetail: React.FC<{
 };
 
 const ProfilePill: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon, label }) => (
-  <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold text-muted-foreground shadow-sm">
-    <span className="shrink-0 text-blue-600">{icon}</span>
+  <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-slate-300 shadow-sm backdrop-blur">
+    <span className="shrink-0 text-cyan-300">{icon}</span>
     <span className="truncate">{label}</span>
   </span>
 );
@@ -1082,38 +1090,38 @@ const DrilldownAnalytics: React.FC<{ review: TrainerReviewRecord; profile: Train
 
 const DrillMetric: React.FC<{ label: string; value: string; helper: string; accent: string; icon: React.ReactNode; delay: number; fill: number; mounted: boolean }> = ({ label, value, helper, accent, icon, delay, fill, mounted }) => (
   <div
-    className={`group relative h-full overflow-hidden rounded-2xl border border-border bg-card px-3.5 py-3 shadow-[0_18px_36px_rgba(15,23,42,0.05)] transition-all duration-700 ease-out ${
+    className={`group relative h-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-3 shadow-[0_18px_36px_rgba(0,0,0,0.22)] transition-all duration-700 ease-out ${
       mounted ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
     }`}
     style={{ transitionDelay: `${delay * 70}ms` }}
   >
-    <div className="absolute inset-x-0 bottom-0 h-1 bg-muted">
-      <div className="h-full rounded-r-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 transition-all duration-700 ease-out" style={{ width: mounted ? `${Math.max(8, Math.min(100, fill))}%` : '0%' }} />
+    <div className="absolute inset-x-0 bottom-0 h-1 bg-white/10">
+      <div className="h-full rounded-r-full bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 transition-all duration-700 ease-out" style={{ width: mounted ? `${Math.max(8, Math.min(100, fill))}%` : '0%' }} />
     </div>
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          <span className="text-blue-600">{icon}</span>
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">
+          <span className="text-cyan-300">{icon}</span>
           {label}
         </div>
-        <div className={`mt-2 text-2xl font-semibold leading-none ${accent}`}>{value}</div>
+        <div className={`mt-2 text-2xl font-semibold leading-none ${accent === 'text-foreground' ? 'text-white' : accent}`}>{value}</div>
       </div>
-      <ArrowUpRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-blue-500" />
+      <ArrowUpRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-cyan-300" />
     </div>
-    <div className="mt-2 text-[11px] font-semibold text-muted-foreground">{helper}</div>
+    <div className="mt-2 text-[11px] font-semibold text-slate-400">{helper}</div>
   </div>
 );
 
 const TechnicalList: React.FC<{ title: string; icon?: React.ReactNode; items: string[]; fallback: string }> = ({ title, icon, items, fallback }) => (
-  <div className="rounded-2xl border border-border bg-card p-3 shadow-[0_18px_36px_rgba(15,23,42,0.05)]">
-    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
+  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-[0_18px_36px_rgba(0,0,0,0.22)]">
+    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white">
       {icon}
       {title}
     </div>
-    <ul className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+    <ul className="space-y-2 text-xs leading-relaxed text-slate-400">
       {(items.length ? items : [fallback]).map((item) => (
         <li key={item} className="flex gap-2">
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
           <span>{item}</span>
         </li>
       ))}
@@ -1122,15 +1130,15 @@ const TechnicalList: React.FC<{ title: string; icon?: React.ReactNode; items: st
 );
 
 const DetailBanner: React.FC<{ icon: React.ReactNode; title: string; value: string; text: string }> = ({ icon, title, value, text }) => (
-  <div className="rounded-2xl border border-border bg-card p-3 shadow-[0_18px_36px_rgba(15,23,42,0.05)]">
-    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-      <span className="text-blue-600">{icon}</span>
+  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-[0_18px_36px_rgba(0,0,0,0.22)]">
+    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+      <span className="text-cyan-300">{icon}</span>
       {title}
     </div>
     <div className="mt-2 flex items-center gap-2">
-      <div className="text-lg font-semibold text-foreground">{value}</div>
+      <div className="text-lg font-semibold text-white">{value}</div>
     </div>
-    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{text}</p>
+    <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{text}</p>
   </div>
 );
 
@@ -1148,12 +1156,12 @@ function richFeedbackItems(value?: string): Array<{ label?: string; text: string
 }
 
 const RichFeedbackList: React.FC<{ value?: string }> = ({ value }) => (
-  <ul className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+  <ul className="space-y-2 text-xs leading-relaxed text-slate-400">
     {richFeedbackItems(value).map((item, index) => (
       <li key={`${item.label || item.text}-${index}`} className="flex gap-2">
-        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
         <span>
-          {item.label && <span className="font-semibold text-foreground">{item.label}: </span>}
+          {item.label && <span className="font-semibold text-white">{item.label}: </span>}
           {item.text}
         </span>
       </li>
@@ -1169,32 +1177,32 @@ const EvaluatorFeedbackBrief: React.FC<{ value?: string }> = ({ value }) => {
   const columns = [detailItems.slice(0, splitIndex), detailItems.slice(splitIndex)].filter((column) => column.length > 0);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_18px_36px_rgba(0,0,0,0.22)]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Evaluator Feedback</div>
-          <div className="mt-1 text-sm font-semibold text-foreground">Qualitative coaching readout</div>
+          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Evaluator Feedback</div>
+          <div className="mt-1 text-sm font-semibold text-white">Qualitative coaching readout</div>
         </div>
-        <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-200">
           {items.length} note{items.length === 1 ? '' : 's'}
         </span>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="rounded-xl border border-border bg-muted p-3">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Narrative Summary</div>
-          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+        <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Narrative Summary</div>
+          <p className="text-sm leading-relaxed text-slate-100">{summary}</p>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
           {columns.map((column, columnIndex) => (
             <ul key={columnIndex} className="space-y-2">
               {column.map((item, index) => (
-                <li key={`${item.label || item.text}-${columnIndex}-${index}`} className="rounded-xl border border-border bg-card p-3 shadow-sm">
-                  <div className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                <li key={`${item.label || item.text}-${columnIndex}-${index}`} className="rounded-xl border border-white/10 bg-slate-950/35 p-3 shadow-sm">
+                  <div className="flex gap-2 text-xs leading-relaxed text-slate-400">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300" />
                     <span>
-                      {item.label && <span className="font-semibold text-foreground">{item.label}: </span>}
+                      {item.label && <span className="font-semibold text-white">{item.label}: </span>}
                       {item.text}
                     </span>
                   </div>
@@ -1209,13 +1217,13 @@ const EvaluatorFeedbackBrief: React.FC<{ value?: string }> = ({ value }) => {
 };
 
 const InsightBlock: React.FC<{ title: string; value?: string; icon?: React.ReactNode }> = ({ title, value, icon }) => (
-  <div className="rounded-xl border border-border bg-muted p-3">
-    <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-foreground">
+  <div className="rounded-xl border border-white/10 bg-white/[0.06] p-3">
+    <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-white">
       {icon}
       {title}
     </div>
     {title.toLowerCase().includes('feedback') || title.toLowerCase().includes('evaluation')
       ? <RichFeedbackList value={value} />
-      : <p className="text-xs leading-relaxed text-muted-foreground">{value || 'No detail captured.'}</p>}
+      : <p className="text-xs leading-relaxed text-slate-400">{value || 'No detail captured.'}</p>}
   </div>
 );

@@ -49,13 +49,14 @@ export interface TrainerProfile {
 }
 
 const STORAGE_KEY = 'p57_trainer_profiles_v1';
+const ACTIVE_TRAINER_NAMES = new Set(TRAINERS.map((trainer) => trainer.trim()));
 const INACTIVE_TRAINER_NAMES = new Set([
   'Unspecified Instructor',
 ]);
 
 function isActiveTrainerName(trainer: string): boolean {
   const normalized = trainer.trim();
-  return Boolean(normalized) && !INACTIVE_TRAINER_NAMES.has(normalized);
+  return Boolean(normalized) && ACTIVE_TRAINER_NAMES.has(normalized) && !INACTIVE_TRAINER_NAMES.has(normalized);
 }
 
 function getStorage(): Storage | null {
@@ -88,7 +89,7 @@ export function loadTrainerProfiles(): TrainerProfile[] {
       acc[review.trainer].push(review);
       return acc;
     }, {});
-    const trainerNames = Array.from(new Set([...TRAINERS, ...Object.keys(grouped)]));
+    const trainerNames = [...TRAINERS];
     return trainerNames
       .filter(isActiveTrainerName)
       .map((trainer) => summarizeProfile(
@@ -214,7 +215,7 @@ export function buildTrainerProfilesFromReviews(records: TrainerReviewRecord[]):
     acc[review.trainer].push(review);
     return acc;
   }, {});
-  const trainerNames = Array.from(new Set([...TRAINERS, ...Object.keys(grouped)]));
+  const trainerNames = [...TRAINERS];
   return trainerNames
     .filter(isActiveTrainerName)
     .map((trainer) => summarizeProfile(
