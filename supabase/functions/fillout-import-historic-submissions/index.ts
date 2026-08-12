@@ -12,6 +12,8 @@ const corsHeaders = {
 
 const DEFAULT_FORMS = [
   { formId: 'dSw2VkfdGqus', classType: 'barre' },
+  { formId: 'ceKTqZnemVus', classType: 'barre' },
+  { formId: 'jJFTEMzHkMus', classType: 'powerCycle' },
 ] as const;
 
 const MAX_LIMIT = 150;
@@ -22,6 +24,7 @@ type ImportForm = {
 };
 
 type ImportRequest = {
+  listForms?: boolean;
   forms?: ImportForm[];
   formId?: string;
   classType?: string;
@@ -144,6 +147,23 @@ async function fetchFilloutPage(
   };
 }
 
+async function fetchFilloutForms(apiKey: string): Promise<unknown> {
+  const res = await fetch('https://api.fillout.com/v1/api/forms', {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  const text = await res.text();
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Keep the original response body for diagnostics.
+  }
+
+  if (!res.ok) throw new Error(`Fillout API ${res.status}: ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+  return body;
+}
+
 function buildTrainerReviewRow(mapping: ReturnType<typeof mapFilloutTrainingEvaluation>, form: ImportForm) {
   const input = mapping.input;
   const scorePercent = mapping.record.scorePercent;
@@ -206,6 +226,14 @@ Deno.serve(async (request) => {
   const dryRun = body.dryRun === true;
   const refreshExisting = body.refreshExisting === true;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  if (body.listForms === true) {
+    try {
+      return json({ forms: await fetchFilloutForms(filloutApiKey) });
+    } catch (error) {
+      return json({ error: formatError(error) }, 500);
+    }
+  }
 
   const summary = {
     dryRun,

@@ -146,7 +146,16 @@ export async function fetchTrainerReviewRecords(): Promise<TrainerReviewRecord[]
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return ((data || []) as DbTrainerReviewRow[])
+  if (data?.length) {
+    return ((data || []) as DbTrainerReviewRow[])
+      .map(trainerReviewRecordFromRow)
+      .filter((record): record is TrainerReviewRecord => Boolean(record));
+  }
+
+  const { invokeTicketingFunction } = await import('@/lib/ticketing-functions');
+  const { data: functionData, error: functionError } = await invokeTicketingFunction<{ reviews?: DbTrainerReviewRow[] }>('trainer-reviews');
+  if (functionError) throw new Error(functionError.message || 'Unable to load trainer reviews');
+  return ((functionData?.reviews || []) as DbTrainerReviewRow[])
     .map(trainerReviewRecordFromRow)
     .filter((record): record is TrainerReviewRecord => Boolean(record));
 }
