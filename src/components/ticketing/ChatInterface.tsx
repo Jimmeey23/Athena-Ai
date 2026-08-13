@@ -2503,7 +2503,6 @@ const reporterName = getReporterName(user);
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(100,116,139,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(100,116,139,0.08)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_78%_56%_at_50%_50%,#000_68%,transparent_110%)]" />
         {loadDecorativeRobot ? (
           <InteractiveRobotSpline
-            key={instructorEvaluationMode ? 'athena-trainer-blue' : 'athena-ticket-blue'}
             scene={ROBOT_SPLINE_URL}
             className="athena-bot-tint-blue absolute inset-0 h-full w-full transition duration-500"
             smile

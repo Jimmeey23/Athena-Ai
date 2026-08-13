@@ -27,8 +27,12 @@ import {
   CheckCircle2,
   GitCompareArrows,
   Moon,
+  Pencil,
+  Plus,
   Printer,
   Sun,
+  Trash2,
+  X,
 } from 'lucide-react';
 import {
   Bar,
@@ -45,18 +49,26 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  TRAINER_REVIEW_TEMPLATES,
+  TrainerEvaluationInput,
+  TrainerEvaluationScore,
   TrainerProfile,
   TrainerReviewRecord,
+  TrainerReviewTemplate,
   buildTrainerProfilesFromReviews,
+  createTrainerReviewRecord,
+  deleteTrainerReviewRecord,
   fetchTrainerReviewRecords,
   loadLocalTrainerReviewRecords,
   trainerReviewRecordsFromTickets,
+  updateTrainerReviewRecord,
 } from '@/lib/trainer-profiles';
-import { Ticket } from '@/lib/ticketing-data';
+import { CLASS_TYPES, STUDIOS, Ticket, TRAINERS } from '@/lib/ticketing-data';
 import { trainerImageUrl, trainerInitials } from '@/lib/trainer-images';
 import { buildTrainerFallbackSummary } from '@/lib/trainer-summary';
 import { useTickets } from './useTickets';
 import { invokeTicketingFunction } from '@/lib/ticketing-functions';
+import { useBackendAuth } from '@/contexts/useBackendAuth';
 
 function parseFlexibleDate(value?: string): Date | null {
   if (!value?.trim()) return null;
@@ -313,12 +325,16 @@ const TrainerAISummary: React.FC<{ profile: TrainerProfile }> = ({ profile }) =>
 
 export const TrainerProfilesPanel: React.FC = () => {
   const { tickets } = useTickets();
+  const { accessRole } = useBackendAuth();
+  const isAdmin = accessRole === 'admin';
   const [localReviews, setLocalReviews] = useState<TrainerReviewRecord[]>(() => loadLocalTrainerReviewRecords());
   const [remoteReviews, setRemoteReviews] = useState<TrainerReviewRecord[]>([]);
   const [remoteError, setRemoteError] = useState('');
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState<string>('');
   const [activeReviewKey, setActiveReviewKey] = useState<string>('');
+  const [reviewModal, setReviewModal] = useState<{ mode: 'create' | 'edit'; review?: TrainerReviewRecord } | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<string>('');
   const profiles = useMemo<TrainerProfile[]>(
     () => buildTrainerProfilesFromReviews([
       ...remoteReviews,
@@ -381,6 +397,25 @@ export const TrainerProfilesPanel: React.FC = () => {
     [tickets]
   );
 
+  const handleDeleteReview = async (review: TrainerReviewRecord) => {
+    if (!window.confirm(`Delete this review for ${review.trainer}? This cannot be undone.`)) return;
+    setDeletingReviewId(review.id);
+    try {
+      await deleteTrainerReviewRecord(review.id);
+      if (reviewKey(review) === activeReviewKey) setActiveReviewKey('');
+      await refreshRemoteReviews();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to delete trainer review');
+    } finally {
+      setDeletingReviewId('');
+    }
+  };
+
+  const handleReviewSaved = async () => {
+    setReviewModal(null);
+    await refreshRemoteReviews();
+  };
+
   return (
     <div className="relative h-full overflow-hidden bg-background">
       <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-background via-background/60 to-transparent" />
@@ -399,6 +434,16 @@ export const TrainerProfilesPanel: React.FC = () => {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setReviewModal({ mode: 'create' })}
+                  className="flex h-9 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                >
+                  <Plus className="h-4 w-4" />
+                  New review
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void refreshRemoteReviews()}
@@ -469,12 +514,26 @@ export const TrainerProfilesPanel: React.FC = () => {
                   ticketBySourceRef={ticketBySourceRef}
                   activeReviewKey={activeReviewKey}
                   onSelectReview={setActiveReviewKey}
+                  isAdmin={isAdmin}
+                  deletingReviewId={deletingReviewId}
+                  onEditReview={(review) => setReviewModal({ mode: 'edit', review })}
+                  onDeleteReview={handleDeleteReview}
                 />
               )}
             </section>
           </div>
         )}
       </div>
+
+      {reviewModal && (
+        <TrainerReviewFormModal
+          mode={reviewModal.mode}
+          review={reviewModal.review}
+          defaultTrainer={selectedTrainer}
+          onClose={() => setReviewModal(null)}
+          onSaved={handleReviewSaved}
+        />
+      )}
     </div>
   );
 };
@@ -491,7 +550,11 @@ const TrainerProfileDetail: React.FC<{
   ticketBySourceRef: Map<string, Ticket>;
   activeReviewKey: string;
   onSelectReview: (key: string) => void;
-}> = ({ profile, ticketBySourceRef, activeReviewKey, onSelectReview }) => {
+  isAdmin: boolean;
+  deletingReviewId: string;
+  onEditReview: (review: TrainerReviewRecord) => void;
+  onDeleteReview: (review: TrainerReviewRecord) => void;
+}> = ({ profile, ticketBySourceRef, activeReviewKey, onSelectReview, isAdmin, deletingReviewId, onEditReview, onDeleteReview }) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -670,9 +733,32 @@ const TrainerProfileDetail: React.FC<{
                 <TrendingUp className="h-4 w-4 text-cyan-300" />
                 {activeReviewKey ? 'Selected Assessment Drilldown' : 'Latest Weighted Review'}
               </div>
-              <div className="report-active-audit-pill inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
-                <span className="report-pulse-dot" />
-                Audit: <b>{formatReviewPeriod(activeReview.reviewPeriod)}</b> ({activeReview.scorePercent}%)
+              <div className="flex items-center gap-2">
+                <div className="report-active-audit-pill inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                  <span className="report-pulse-dot" />
+                  Audit: <b>{formatReviewPeriod(activeReview.reviewPeriod)}</b> ({activeReview.scorePercent}%)
+                </div>
+                {isAdmin && activeReview.source === 'trainer_reviews' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onEditReview(activeReview)}
+                      title="Edit this review"
+                      className="report-icon-btn"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteReview(activeReview)}
+                      disabled={deletingReviewId === activeReview.id}
+                      title="Delete this review"
+                      className="report-icon-btn text-rose-500 hover:text-rose-600 disabled:opacity-40"
+                    >
+                      {deletingReviewId === activeReview.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -857,11 +943,13 @@ const TrainerProfileDetail: React.FC<{
                   const key = reviewKey(review);
                   const selected = activeReview ? reviewKey(activeReview) === key : false;
                   return (
-                    <button
+                    <div
                       key={key}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => selectHistoryItem(key, ticket)}
-                      className={`report-hist-card grid w-full gap-3 px-4 py-4 text-left lg:grid-cols-[210px_minmax(0,1fr)_140px] ${selected ? 'active' : ''}`}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') selectHistoryItem(key, ticket); }}
+                      className={`report-hist-card grid w-full cursor-pointer gap-3 px-4 py-4 text-left lg:grid-cols-[210px_minmax(0,1fr)_140px] ${selected ? 'active' : ''}`}
                     >
                       <div>
                         <div className="report-text-strong flex items-center gap-1.5 text-xs font-semibold">
@@ -884,8 +972,29 @@ const TrainerProfileDetail: React.FC<{
                           {selected && <span className="report-pulse-dot report-pulse-dot-emerald" />}
                           {selected ? 'Active in Report' : 'Load Audit →'}
                         </span>
+                        {isAdmin && review.source === 'trainer_reviews' && (
+                          <span className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(event) => { event.stopPropagation(); onEditReview(review); }}
+                              title="Edit this review"
+                              className="report-icon-btn h-7 w-7"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => { event.stopPropagation(); onDeleteReview(review); }}
+                              disabled={deletingReviewId === review.id}
+                              title="Delete this review"
+                              className="report-icon-btn h-7 w-7 text-rose-500 hover:text-rose-600 disabled:opacity-40"
+                            >
+                              {deletingReviewId === review.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            </button>
+                          </span>
+                        )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -2347,3 +2456,205 @@ const InsightBlock: React.FC<{ title: string; value?: string; icon?: React.React
       : <p className="report-text-muted text-xs leading-relaxed">{value || 'No detail captured.'}</p>}
   </div>
 );
+
+function scoresForTemplate(template: TrainerReviewTemplate, previous: TrainerEvaluationScore[]): TrainerEvaluationScore[] {
+  return TRAINER_REVIEW_TEMPLATES[template].map((row) => {
+    const existing = previous.find((item) => item.category.trim().toLowerCase() === row.category.trim().toLowerCase());
+    return { category: row.category, weightage: row.weightage, score: existing ? Math.max(0, Math.min(row.weightage, existing.score)) : 0 };
+  });
+}
+
+const TrainerReviewFormModal: React.FC<{
+  mode: 'create' | 'edit';
+  review?: TrainerReviewRecord;
+  defaultTrainer: string;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ mode, review, defaultTrainer, onClose, onSaved }) => {
+  const initialTemplate: TrainerReviewTemplate = review?.template || 'Barre';
+  const [trainer, setTrainer] = useState(review?.trainer || defaultTrainer || TRAINERS[0]);
+  const [template, setTemplate] = useState<TrainerReviewTemplate>(initialTemplate);
+  const [studio, setStudio] = useState(review?.studio || '');
+  const [classType, setClassType] = useState(review?.classType || '');
+  const [reviewPeriod, setReviewPeriod] = useState(review?.reviewPeriod || '');
+  const [feedback, setFeedback] = useState(review?.feedback || '');
+  const [focusPoints, setFocusPoints] = useState(review?.focusPoints || '');
+  const [goals, setGoals] = useState(review?.goals || '');
+  const [scores, setScores] = useState<TrainerEvaluationScore[]>(() => scoresForTemplate(initialTemplate, review?.scores || []));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleTemplateChange = (next: TrainerReviewTemplate) => {
+    setTemplate(next);
+    setScores((previous) => scoresForTemplate(next, previous));
+  };
+
+  const updateScore = (category: string, value: number, weightage: number) => {
+    setScores((previous) => previous.map((item) => (
+      item.category === category ? { ...item, score: Math.max(0, Math.min(weightage, Number.isFinite(value) ? value : 0)) } : item
+    )));
+  };
+
+  const totalWeightage = scores.reduce((sum, item) => sum + item.weightage, 0);
+  const totalScore = scores.reduce((sum, item) => sum + item.score, 0);
+  const scorePercent = totalWeightage ? Math.round((totalScore / totalWeightage) * 100) : 0;
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!trainer.trim() || !feedback.trim()) {
+      setError('Instructor and evaluator feedback are required.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const input: TrainerEvaluationInput = {
+      trainer: trainer.trim(),
+      template,
+      studio: studio || undefined,
+      classType: classType || undefined,
+      reviewPeriod: reviewPeriod || undefined,
+      scores,
+      feedback: feedback.trim(),
+      focusPoints: focusPoints.trim() || undefined,
+      goals: goals.trim() || undefined,
+    };
+    try {
+      if (mode === 'edit' && review) {
+        await updateTrainerReviewRecord(review.id, input);
+      } else {
+        await createTrainerReviewRecord(input);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save trainer review');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <div className="text-sm font-semibold text-foreground">{mode === 'edit' ? 'Edit trainer review' : 'New trainer review'}</div>
+            <div className="text-xs text-muted-foreground">Manually manage instructor assessment records.</div>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-semibold text-muted-foreground">
+                Instructor
+                <select value={trainer} onChange={(event) => setTrainer(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
+                  {TRAINERS.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-muted-foreground">
+                Template
+                <select value={template} onChange={(event) => handleTemplateChange(event.target.value as TrainerReviewTemplate)} className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
+                  {(Object.keys(TRAINER_REVIEW_TEMPLATES) as TrainerReviewTemplate[]).map((key) => <option key={key} value={key}>{key}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-muted-foreground">
+                Studio
+                <select value={studio} onChange={(event) => setStudio(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
+                  <option value="">Not captured</option>
+                  {STUDIOS.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-muted-foreground">
+                Class type
+                <select value={classType} onChange={(event) => setClassType(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
+                  <option value="">Not captured</option>
+                  {CLASS_TYPES.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              <label className="col-span-2 text-xs font-semibold text-muted-foreground">
+                Review period
+                <input
+                  type="text"
+                  value={reviewPeriod}
+                  onChange={(event) => setReviewPeriod(event.target.value)}
+                  placeholder="e.g. August 2026"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground"
+                />
+              </label>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                <span>Weighted scorecard</span>
+                <span className="text-foreground">{totalScore.toFixed(1)} / {totalWeightage} ({scorePercent}%)</span>
+              </div>
+              <div className="space-y-1.5 rounded-xl border border-border p-2.5">
+                {scores.map((item) => (
+                  <div key={item.category} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{item.category}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={item.weightage}
+                      step={0.5}
+                      value={item.score}
+                      onChange={(event) => updateScore(item.category, Number(event.target.value), item.weightage)}
+                      className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-right text-xs text-foreground"
+                    />
+                    <span className="w-10 text-[11px] text-muted-foreground">/ {item.weightage}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label className="block text-xs font-semibold text-muted-foreground">
+              Evaluator feedback
+              <textarea
+                value={feedback}
+                onChange={(event) => setFeedback(event.target.value)}
+                rows={4}
+                required
+                className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              Focus points
+              <textarea
+                value={focusPoints}
+                onChange={(event) => setFocusPoints(event.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              Goals
+              <textarea
+                value={goals}
+                onChange={(event) => setGoals(event.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground"
+              />
+            </label>
+
+            {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+            <button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+              {saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create review'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

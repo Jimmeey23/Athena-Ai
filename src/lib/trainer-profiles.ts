@@ -9,6 +9,7 @@ import {
   buildTrainerEvaluationText,
   buildTrainerReviewRecord,
   parseTrainerEvaluationText,
+  scoreTrainerEvaluation,
 } from './trainer-evaluation-core';
 
 export {
@@ -137,6 +138,75 @@ function trainerReviewRecordFromRow(row: DbTrainerReviewRow): TrainerReviewRecor
     source: row.source || 'trainer_reviews',
     sourceRef: row.source_ref || row.id,
   };
+}
+
+function toDbTrainerReviewRow(input: TrainerEvaluationInput, options: { id: string; sourceRef: string; createdAt?: string }): Omit<DbTrainerReviewRow, 'created_at'> & { created_at?: string } {
+  const scored = buildTrainerReviewRecord(input, { id: options.id, sourceRef: options.sourceRef, source: 'trainer_reviews', createdAt: options.createdAt });
+  return {
+    id: options.id,
+    source: 'trainer_reviews',
+    source_ref: options.sourceRef,
+    trainer: scored.trainer,
+    template: scored.template,
+    studio: scored.studio || null,
+    class_type: scored.classType || null,
+    review_period: scored.reviewPeriod || null,
+    scores: scored.scores,
+    feedback: scored.feedback || null,
+    focus_points: scored.focusPoints || null,
+    goals: scored.goals || null,
+    raw_text: scored.rawText || null,
+    total_weightage: scored.totalWeightage,
+    total_score: scored.totalScore,
+    score_percent: scored.scorePercent,
+    created_at: options.createdAt,
+  };
+}
+
+export async function createTrainerReviewRecord(input: TrainerEvaluationInput): Promise<TrainerReviewRecord> {
+  const { backendSupabase } = await import('@/lib/backend-supabase');
+  const id = `manual-trainer-review-${Date.now()}`;
+  const row = toDbTrainerReviewRow(input, { id, sourceRef: id });
+  const { data, error } = await backendSupabase.from('trainer_reviews').insert(row).select('*').single();
+  if (error) throw error;
+  const record = trainerReviewRecordFromRow(data as DbTrainerReviewRow);
+  if (!record) throw new Error('Trainer review saved but could not be read back');
+  return record;
+}
+
+export async function updateTrainerReviewRecord(id: string, input: TrainerEvaluationInput): Promise<TrainerReviewRecord> {
+  const { backendSupabase } = await import('@/lib/backend-supabase');
+  const scored = scoreTrainerEvaluation(input.scores);
+  const { data, error } = await backendSupabase
+    .from('trainer_reviews')
+    .update({
+      trainer: input.trainer,
+      template: input.template,
+      studio: input.studio || null,
+      class_type: input.classType || null,
+      review_period: input.reviewPeriod || null,
+      scores: scored.scores,
+      feedback: input.feedback || null,
+      focus_points: input.focusPoints || null,
+      goals: input.goals || null,
+      raw_text: input.rawText || null,
+      total_weightage: scored.totalWeightage,
+      total_score: scored.totalScore,
+      score_percent: scored.scorePercent,
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  const record = trainerReviewRecordFromRow(data as DbTrainerReviewRow);
+  if (!record) throw new Error('Trainer review updated but could not be read back');
+  return record;
+}
+
+export async function deleteTrainerReviewRecord(id: string): Promise<void> {
+  const { backendSupabase } = await import('@/lib/backend-supabase');
+  const { error } = await backendSupabase.from('trainer_reviews').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function fetchTrainerReviewRecords(): Promise<TrainerReviewRecord[]> {

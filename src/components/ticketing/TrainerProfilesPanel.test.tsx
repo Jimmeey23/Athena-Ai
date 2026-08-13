@@ -16,6 +16,12 @@ vi.mock('./useTickets', () => ({
   }),
 }));
 
+vi.mock('@/contexts/useBackendAuth', () => ({
+  useBackendAuth: () => ({
+    accessRole: 'support',
+  }),
+}));
+
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-container">{children}</div>,
   RadarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
