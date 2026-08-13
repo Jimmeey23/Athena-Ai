@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface InteractiveRobotSplineProps {
@@ -12,33 +13,52 @@ interface InteractiveRobotSplineProps {
 export default function InteractiveRobotSpline({
   className,
 }: InteractiveRobotSplineProps) {
+  // Drop the iframe (stop the WebGL scene entirely) while the tab is backgrounded.
+  // The scene otherwise keeps rendering at full rate with zero visible benefit,
+  // burning CPU/GPU across the whole app.
+  const [visible, setVisible] = useState(() =>
+    typeof document === 'undefined' || document.visibilityState !== 'hidden',
+  );
+
+  useEffect(() => {
+    const handleVisibility = () => setVisible(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
   return (
     <div
       className={cn('relative min-h-6 min-w-6', className)}
       /* Force a dark base so even if the iframe bg bleeds, it reads dark */
-      style={{ background: 'rgb(10, 15, 30)' }}
+      /* isolation: isolate scopes mix-blend-mode below to this box only, so the
+         browser doesn't have to recompute blending against the whole page's paint
+         stack every frame -- without this the blend mode causes visible flicker
+         and drags down performance app-wide. */
+      style={{ background: 'rgb(10, 15, 30)', isolation: 'isolate' }}
     >
       {/* iframe sits below all z-10 overlay cards */}
-      <iframe
-        src="https://my.spline.design/genkubgreetingrobot-dPYL2QOApdnp3T8l7XOfA33f/"
-        frameBorder="0"
-        title="Greeting Robot"
-        allow="autoplay"
-        style={{
-          position: 'absolute',
-          top: '5%',
-          left: '10%',
-          width: '120%',
-          height: '100%',
-          border: 'none',
-          display: 'block',
-          /* lighten: white bg of iframe disappears against our dark container;
-             only the robot (bright object) shows through */
-          mixBlendMode: 'lighten',
-          zIndex: 1,
-          transform: 'scaleX(1)',
-        }}
-      />
+      {visible && (
+        <iframe
+          src="https://my.spline.design/genkubgreetingrobot-dPYL2QOApdnp3T8l7XOfA33f/"
+          frameBorder="0"
+          title="Greeting Robot"
+          allow="autoplay"
+          style={{
+            position: 'absolute',
+            top: '5%',
+            left: '10%',
+            width: '120%',
+            height: '100%',
+            border: 'none',
+            display: 'block',
+            /* lighten: white bg of iframe disappears against our dark container;
+               only the robot (bright object) shows through */
+            mixBlendMode: 'lighten',
+            zIndex: 1,
+            transform: 'scaleX(1)',
+          }}
+        />
+      )}
 
       {/* Top-edge fade: merges iframe top into the sidebar gradient */}
       <div
