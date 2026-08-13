@@ -5355,58 +5355,63 @@ const EvaluationClassSelector: React.FC = () => {
   const selectedRef = React.useRef(selected);
   selectedRef.current = selected;
 
+  const recordSubmission = React.useCallback(async (classType: 'barre' | 'powerCycle' | 'strength' | 'nonTechnical', submissionId: string | null) => {
+    const formId = FORM_IDS[classType];
+
+    setSubmitStatus('fetching');
+    setSubmitMessage('Saving evaluation as ticket…');
+
+    try {
+      const { data, error } = await invokeTicketingFunction<{
+        created: boolean;
+        duplicate?: boolean;
+        ticketId?: string;
+      }>('fillout-fetch-submission', {
+        body: { formId, submissionId, classType },
+      });
+
+      if (error) throw new Error(String(error));
+
+      if (data?.duplicate) {
+        setSubmitStatus('done');
+        setSubmitMessage('Evaluation already recorded — no duplicate created.');
+      } else {
+        setSubmitStatus('done');
+        setSubmitMessage(`Ticket created successfully${data?.ticketId ? ` · #${data.ticketId.slice(-6)}` : ''}`);
+      }
+    } catch (e) {
+      setSubmitStatus('error');
+      setSubmitMessage(e instanceof Error ? e.message : 'Failed to create ticket');
+    }
+  }, []);
+
   React.useEffect(() => {
-    const handler = async (event: MessageEvent) => {
+    const handler = (event: MessageEvent) => {
       const d = event.data as Record<string, unknown>;
       if (!d || typeof d !== 'object') return;
 
-      // Fillout fires submitCompleted / formSubmitted / fillout:submitCompleted
-      const isSubmit =
-        d.type === 'submitCompleted' ||
-        d.type === 'formSubmitted' ||
-        d.type === 'fillout:formSubmitted' ||
-        d.type === 'fillout:submitCompleted';
+      // Fillout's embed script postMessage type varies by version/event
+      // (submitCompleted / formSubmitted / fillout:submitCompleted / etc).
+      // Match loosely on "submit" so we don't silently miss a real submission
+      // because of an exact-string mismatch we haven't seen yet.
+      const typeValue = String(d.type ?? '');
+      const isSubmit = /submit/i.test(typeValue);
       if (!isSubmit) return;
 
       const classType = selectedRef.current;
       if (!classType) return;
 
-      const formId = FORM_IDS[classType];
       const submissionId =
         (d.submissionId as string | undefined) ||
         (d.submission_id as string | undefined) ||
         null;
 
-      setSubmitStatus('fetching');
-      setSubmitMessage('Saving evaluation as ticket…');
-
-      try {
-        const { data, error } = await invokeTicketingFunction<{
-          created: boolean;
-          duplicate?: boolean;
-          ticketId?: string;
-        }>('fillout-fetch-submission', {
-          body: { formId, submissionId, classType },
-        });
-
-        if (error) throw new Error(String(error));
-
-        if (data?.duplicate) {
-          setSubmitStatus('done');
-          setSubmitMessage('Evaluation already recorded — no duplicate created.');
-        } else {
-          setSubmitStatus('done');
-          setSubmitMessage(`Ticket created successfully${data?.ticketId ? ` · #${data.ticketId.slice(-6)}` : ''}`);
-        }
-      } catch (e) {
-        setSubmitStatus('error');
-        setSubmitMessage(e instanceof Error ? e.message : 'Failed to create ticket');
-      }
+      void recordSubmission(classType, submissionId);
     };
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [recordSubmission]);
 
   const CLASS_OPTIONS = [
     {
@@ -5500,13 +5505,22 @@ const EvaluationClassSelector: React.FC = () => {
 
       {selected && (
         <div className="animate-p57-fade-up overflow-hidden rounded-3xl border border-border bg-card shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
-          <div className="border-b border-slate-100 bg-muted/80 px-5 py-3">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-muted/80 px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="text-base">{CLASS_OPTIONS.find(o => o.key === selected)?.icon}</span>
               <span className="text-sm font-semibold text-foreground">
                 {CLASS_OPTIONS.find(o => o.key === selected)?.label} Evaluation Form
               </span>
             </div>
+            <button
+              type="button"
+              onClick={() => void recordSubmission(selected, null)}
+              disabled={submitStatus === 'fetching'}
+              title="If the form doesn't auto-record after submitting, use this to fetch your latest submission and create the ticket manually."
+              className="shrink-0 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:border-blue-200 hover:text-blue-700 disabled:opacity-50"
+            >
+              Already submitted? Sync now
+            </button>
           </div>
           <div className="p-4">
             {selected === 'barre' && (
