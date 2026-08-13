@@ -96,7 +96,7 @@ Deno.serve(async (request) => {
       assigned_to: TRAINER_PROFILE_OWNER,
       team: 'Training',
       tags: ['trainer-profile', 'instructor-evaluation', 'profile-only', 'fillout-webhook', input.template.toLowerCase()],
-      sentiment: scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Concern',
+      sentiment: scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Negative',
       conversation_summary: [
         `Instructor evaluation submitted for ${input.trainer} (${input.template}).`,
         `Weighted score: ${scorePercent}% · ${performanceBand(scorePercent)}.`,

@@ -138,7 +138,7 @@ Deno.serve(async (request) => {
       classLabel.toLowerCase().replace(/\s+/g, '-'),
     ],
     sentiment:
-      scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Concern',
+      scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Negative',
     conversation_summary: [
       `Instructor evaluation submitted via in-app form for ${input.trainer || 'Unknown'} (${classLabel}).`,
       `Weighted score: ${scorePercent}% · ${performanceBand(scorePercent)}.`,
