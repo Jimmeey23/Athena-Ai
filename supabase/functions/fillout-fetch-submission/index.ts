@@ -2,7 +2,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import {
   buildTrainerEvaluationText,
   mapFilloutTrainingEvaluation,
+  TrainerReviewTemplate,
 } from '../../../src/lib/trainer-evaluation-core.ts';
+
+const CLASS_TYPE_TEMPLATE_HINTS: Record<string, TrainerReviewTemplate> = {
+  barre: 'Barre',
+  powerCycle: 'PowerCycle',
+  strength: 'StrengthFit',
+  nonTechnical: 'NonTechnical',
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,7 +109,8 @@ Deno.serve(async (request) => {
 
   let mapping;
   try {
-    mapping = mapFilloutTrainingEvaluation({ submission: rawSubmission, formId });
+    const templateHint = classType ? CLASS_TYPE_TEMPLATE_HINTS[classType] : undefined;
+    mapping = mapFilloutTrainingEvaluation({ submission: rawSubmission, formId }, new Date(), templateHint);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Mapping failed' }, 400);
   }

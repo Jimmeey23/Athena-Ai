@@ -397,7 +397,7 @@ export const ALL_REPORT_DEFINITIONS: ReportDefinition[] = [
     id: 'trainer_scorecard_trend',
     title: 'Trainer Scorecard Trend',
     group: 'Trainer Performance',
-    description: 'Weighted trainer evaluation score trends across Barre, PowerCycle, and Strength/Fit review templates.',
+    description: 'Weighted trainer evaluation score trends across Barre, PowerCycle, Strength/Fit, and Non-Technical review templates.',
     bestFor: 'Tracking score progression, criterion consistency, and review coverage',
     chart: 'trainer',
     match: 'trainer',

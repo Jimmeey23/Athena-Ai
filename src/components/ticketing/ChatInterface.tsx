@@ -5050,8 +5050,8 @@ const InstructorEvaluationChatbox: React.FC<{
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl border border-border bg-muted p-1">
-        {(['Barre', 'PowerCycle', 'StrengthFit'] as TrainerReviewTemplate[]).map((item) => (
+      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl border border-border bg-muted p-1">
+        {(['Barre', 'PowerCycle', 'StrengthFit', 'NonTechnical'] as TrainerReviewTemplate[]).map((item) => (
           <button
             key={item}
             type="button"
@@ -5062,7 +5062,7 @@ const InstructorEvaluationChatbox: React.FC<{
                 : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
             }`}
           >
-            {item === 'StrengthFit' ? 'Strength/Fit' : item}
+            {item === 'StrengthFit' ? 'Strength/Fit' : item === 'NonTechnical' ? 'Non-Technical' : item}
           </button>
         ))}
       </div>
@@ -5341,14 +5341,15 @@ const FilloutZiteWidget: React.FC<{ ziteId: string; height?: number }> = ({ zite
   return <div ref={containerRef} style={{ width: '100%', minHeight: height }} />;
 };
 
-const FORM_IDS: Record<'barre' | 'powerCycle' | 'strength', string> = {
+const FORM_IDS: Record<'barre' | 'powerCycle' | 'strength' | 'nonTechnical', string> = {
   barre: 'dSw2VkfdGqus',
   powerCycle: 'pdtcpzhxas',
   strength: 'jtvo8xrpg4',
+  nonTechnical: 'syTsvPww8nus',
 };
 
 const EvaluationClassSelector: React.FC = () => {
-  const [selected, setSelected] = React.useState<'barre' | 'powerCycle' | 'strength' | null>(null);
+  const [selected, setSelected] = React.useState<'barre' | 'powerCycle' | 'strength' | 'nonTechnical' | null>(null);
   const [submitStatus, setSubmitStatus] = React.useState<'idle' | 'fetching' | 'done' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = React.useState('');
   const selectedRef = React.useRef(selected);
@@ -5435,6 +5436,15 @@ const EvaluationClassSelector: React.FC = () => {
       border: 'border-blue-200 hover:border-blue-400',
       activeBg: 'bg-blue-50 border-blue-400',
     },
+    {
+      key: 'nonTechnical' as const,
+      label: 'Non Technical',
+      icon: '🤝',
+      desc: 'For all levels — professionalism & soft-skills evaluation',
+      color: 'from-emerald-500 to-teal-600',
+      border: 'border-emerald-200 hover:border-emerald-400',
+      activeBg: 'bg-emerald-50 border-emerald-400',
+    },
   ];
 
   return (
@@ -5464,7 +5474,7 @@ const EvaluationClassSelector: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {CLASS_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -5507,6 +5517,9 @@ const EvaluationClassSelector: React.FC = () => {
             )}
             {selected === 'strength' && (
               <FilloutZiteWidget key="strength" ziteId="jtvo8xrpg4" height={700} />
+            )}
+            {selected === 'nonTechnical' && (
+              <FilloutV1Widget key="nonTechnical" filloutId="syTsvPww8nus" height={500} />
             )}
           </div>
         </div>

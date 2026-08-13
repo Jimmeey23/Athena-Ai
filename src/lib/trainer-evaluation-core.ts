@@ -1,6 +1,6 @@
 import { CLASS_TYPES, STUDIOS, TRAINERS } from './ticketing-data.ts';
 
-export type TrainerReviewTemplate = 'Barre' | 'PowerCycle' | 'StrengthFit';
+export type TrainerReviewTemplate = 'Barre' | 'PowerCycle' | 'StrengthFit' | 'NonTechnical';
 
 export interface TrainerEvaluationScore {
   category: string;
@@ -80,6 +80,16 @@ export const TRAINER_REVIEW_TEMPLATES: Record<TrainerReviewTemplate, Array<{ cat
     { category: 'Overall energy', weightage: 8 },
     { category: 'Mindful moment', weightage: 8 },
     { category: 'Post-class spiel', weightage: 8 },
+  ],
+  NonTechnical: [
+    { category: 'Professionalism and grooming', weightage: 15 },
+    { category: 'Punctuality and reliability', weightage: 10 },
+    { category: 'Client communication and interpersonal skills', weightage: 15 },
+    { category: 'Team collaboration and studio culture fit', weightage: 10 },
+    { category: 'Response to feedback and coachability', weightage: 15 },
+    { category: 'Schedule adherence and administrative compliance', weightage: 10 },
+    { category: 'Brand representation and core values alignment', weightage: 15 },
+    { category: 'Conflict handling and member complaint resolution', weightage: 10 },
   ],
 };
 
@@ -351,9 +361,11 @@ export function buildTrainerEvaluationText(input: TrainerEvaluationInput): strin
 
 export function parseTrainerEvaluationText(text: string, trainer = 'Unspecified Instructor'): TrainerEvaluationInput {
   const lower = text.toLowerCase();
-  const template: TrainerReviewTemplate = /\bstrength\b|\bstrength\s+lab\b|\bstrength\s*\/\s*fit\b|\bfit\b/.test(lower)
-    ? 'StrengthFit'
-    : /power\s?cycle|bike|ride|rider/.test(lower) ? 'PowerCycle' : 'Barre';
+  const template: TrainerReviewTemplate = /non[\s-]?technical/.test(lower)
+    ? 'NonTechnical'
+    : /\bstrength\b|\bstrength\s+lab\b|\bstrength\s*\/\s*fit\b|\bfit\b/.test(lower)
+      ? 'StrengthFit'
+      : /power\s?cycle|bike|ride|rider/.test(lower) ? 'PowerCycle' : 'Barre';
   const avgAttendance = Number(text.match(/average for 2023\s*\n?.*?(\d+(?:\.\d+)?)/i)?.[1] || 0);
   const feedback = [
     text.match(/Client Feedback\s+([\s\S]*?)(?:Internal feedback|Focus points|Goals|$)/i)?.[1],
@@ -436,7 +448,11 @@ function scoreFromAnswers(category: string, weightage: number, pairs: Array<{ la
   return normalizeScore(parseNumber(pair.value), weightage);
 }
 
-export function mapFilloutTrainingEvaluation(payload: unknown, now = new Date()): FilloutTrainingEvaluationMapping {
+export function mapFilloutTrainingEvaluation(
+  payload: unknown,
+  now = new Date(),
+  explicitTemplate?: TrainerReviewTemplate
+): FilloutTrainingEvaluationMapping {
   const object = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
   const submission = getFilloutSubmissionObject(object);
   const answers = uniquePairs(normalizeFilloutPairs(submission, collectAnswerPairs(submission)));
@@ -446,9 +462,13 @@ export function mapFilloutTrainingEvaluation(payload: unknown, now = new Date())
   const trainer = findKnownValue(trainerRaw, TRAINERS) || trainerRaw || 'Unspecified Instructor';
   const templateRaw = findValue(answers, [/template/i, /format/i, /class\s*type/i, /discipline/i]);
   const templateText = `${templateRaw}\n${allText}`;
-  const template: TrainerReviewTemplate = /\bstrength\b|\bstrength\s+lab\b|\bstrength\s*\/\s*fit\b|\bfit\b/i.test(templateText)
-    ? 'StrengthFit'
-    : /power\s?cycle|bike|ride|rider/i.test(templateText) ? 'PowerCycle' : 'Barre';
+  const template: TrainerReviewTemplate = explicitTemplate || (
+    /non[\s-]?technical/i.test(templateText)
+      ? 'NonTechnical'
+      : /\bstrength\b|\bstrength\s+lab\b|\bstrength\s*\/\s*fit\b|\bfit\b/i.test(templateText)
+        ? 'StrengthFit'
+        : /power\s?cycle|bike|ride|rider/i.test(templateText) ? 'PowerCycle' : 'Barre'
+  );
   const studioRaw = findValue(answers, [/^center$/i, /^studio$/i, /^location$/i, /^branch$/i, /studio/i, /location/i, /branch/i, /center/i]);
   const classRaw = findValue(answers, [/class/i, /session/i, /format/i]);
   const reviewPeriod = findValue(answers, [/review\s*period/i, /period/i, /month/i, /date/i]);
