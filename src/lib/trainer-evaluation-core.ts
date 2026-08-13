@@ -81,15 +81,12 @@ export const TRAINER_REVIEW_TEMPLATES: Record<TrainerReviewTemplate, Array<{ cat
     { category: 'Mindful moment', weightage: 8 },
     { category: 'Post-class spiel', weightage: 8 },
   ],
+  // "Class Experience Feedback" form: a member-facing rating (out of 5), not a
+  // weighted technical rubric. Single criterion, scored on the form's own 0-5
+  // scale — scoreTrainerEvaluation() computes percent as a ratio regardless of
+  // the weightage total, so this stays consistent with the other templates.
   NonTechnical: [
-    { category: 'Professionalism and grooming', weightage: 15 },
-    { category: 'Punctuality and reliability', weightage: 10 },
-    { category: 'Client communication and interpersonal skills', weightage: 15 },
-    { category: 'Team collaboration and studio culture fit', weightage: 10 },
-    { category: 'Response to feedback and coachability', weightage: 15 },
-    { category: 'Schedule adherence and administrative compliance', weightage: 10 },
-    { category: 'Brand representation and core values alignment', weightage: 15 },
-    { category: 'Conflict handling and member complaint resolution', weightage: 10 },
+    { category: 'Overall class experience', weightage: 5 },
   ],
 };
 
@@ -470,7 +467,7 @@ export function mapFilloutTrainingEvaluation(
         : /power\s?cycle|bike|ride|rider/i.test(templateText) ? 'PowerCycle' : 'Barre'
   );
   const studioRaw = findValue(answers, [/^center$/i, /^studio$/i, /^location$/i, /^branch$/i, /studio/i, /location/i, /branch/i, /center/i]);
-  const classRaw = findValue(answers, [/class/i, /session/i, /format/i]);
+  const classRaw = findValue(answers, [/^level$/i, /class/i, /session/i, /format/i]);
   const reviewPeriod = findValue(answers, [/review\s*period/i, /period/i, /month/i, /date/i]);
   const feedback = findValue(answers, [/feedback/i, /comments?/i, /observation/i, /evaluation/i, /internal/i])
     || allText.slice(0, 1600)

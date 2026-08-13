@@ -290,6 +290,39 @@ describe('trainer profile evaluation engine', () => {
     expect(mapped.record.rawText).toContain('Trainer Name: Pranjali Jain');
   });
 
+  it('maps the Non Technical "Class Experience Feedback" form using the out-of-5 overall rating', () => {
+    const mapped = mapFilloutTrainingEvaluation({
+      formId: 'syTsvPww8nus',
+      submissionId: 'nt-submission-001',
+      submission: {
+        questions: [
+          { label: 'Date of class', value: '13/08/2026' },
+          { label: 'Time', value: '12:00 AM' },
+          { label: 'Center', value: 'Supreme HQ, Bandra' },
+          { label: 'Evaluated by', value: 'Jimmeey Gondaa' },
+          { label: 'Level', value: 'Studio Barre 57' },
+          { label: 'Trainer Name (1)', value: 'Anisha Shah' },
+          { label: 'Trainer Name (2)', value: '' },
+          { label: 'Rate your overall class experience (out of 5)', value: '2.5' },
+          { label: 'What stood out in your experience?', value: 'Trainer and coaching quality, Effectiveness of the workout' },
+          { label: 'Did you inform the trainer of any existing injuries?', value: 'No' },
+          { label: 'If yes, were you offered modifications where applicable?', value: 'Yes' },
+          { label: 'Would you suggest we make improvements to this class?', value: 'Yes' },
+          { label: 'If yes, please specify what they should be', value: 'Upgrade music quality' },
+          { label: 'Will you retake this class?', value: 'Yes' },
+          { label: 'Yes, because', value: 'Community and vibe' },
+        ],
+      },
+    }, new Date('2026-08-13T06:45:08.858Z'), 'NonTechnical');
+
+    expect(mapped.input.template).toBe('NonTechnical');
+    expect(mapped.input.trainer).toBe('Anisha Shah');
+    expect(mapped.input.studio).toBe('Supreme HQ, Bandra');
+    expect(mapped.input.classType).toBe('Studio Barre 57');
+    expect(mapped.input.scores).toEqual([{ category: 'Overall class experience', weightage: 5, score: 2.5 }]);
+    expect(mapped.record.scorePercent).toBe(50);
+  });
+
   it('hydrates trainer profiles from review records while preserving trainers with no feedback', () => {
     const mapped = mapFilloutTrainingEvaluation({
       formId: 'trainer-eval-form',
