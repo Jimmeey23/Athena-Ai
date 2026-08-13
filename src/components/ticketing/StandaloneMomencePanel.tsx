@@ -6,18 +6,23 @@ import {
   cancelMomenceBooking,
   cancelMomenceRecurringBooking,
   checkInMomenceBooking,
+  createMomenceMember,
   createMomenceReportRun,
   deleteMomenceMemberPhoneNumbers,
   freezeMomenceMembership,
   getMomenceCompatibleMemberships,
   getMomenceCheckoutPrices,
+  getMomenceMemberMembershipHistory,
+  getMomencePaymentTransaction,
   getMomenceReportRun,
   listMomenceAppointmentReservations,
   listMomenceMembers,
   listMomenceSales,
   loadMomenceTicketContext,
+  mapMomenceMembershipToInsight,
   MomenceAppointmentReservation,
   MomenceMemberOption,
+  MomenceMembershipInsight,
   MomenceSale,
   MomenceSessionOption,
   MomenceTicketContext,
@@ -33,6 +38,13 @@ import {
   updateMomenceMembershipCredits,
 } from '@/lib/momence-api';
 import {
+  createMomenceReportCard,
+  deleteMomenceReportCard,
+  listMomenceReportCards,
+  MomenceReportCard,
+  runMomenceReportCard,
+} from '@/lib/momence-report-cards';
+import {
   BadgeCheck,
   Calendar,
   CheckCircle2,
@@ -42,6 +54,7 @@ import {
   Loader2,
   Mail,
   Phone,
+  Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -194,7 +207,7 @@ export const StandaloneMomencePanel: React.FC = () => {
   const [memberQuery, setMemberQuery] = useState('');
   const [memberFilter, setMemberFilter] = useState<'all' | 'with-active-membership'>('all');
   const [sessionQuery, setSessionQuery] = useState('');
-  const [sessionType, setSessionType] = useState<'private' | 'class' | 'course' | 'appointment'>('private');
+  const [sessionType, setSessionType] = useState<'private' | 'fitness' | 'course' | 'special-event'>('private');
   const [members, setMembers] = useState<MomenceMemberOption[]>([]);
   const [sessions, setSessions] = useState<MomenceSessionOption[]>([]);
   const [selectedMember, setSelectedMember] = useState<MomenceMemberOption | null>(null);
@@ -224,6 +237,20 @@ export const StandaloneMomencePanel: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showCreateMember, setShowCreateMember] = useState(false);
+  const [newMemberFirstName, setNewMemberFirstName] = useState('');
+  const [newMemberLastName, setNewMemberLastName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberPhone, setNewMemberPhone] = useState('');
+  const [showMembershipHistory, setShowMembershipHistory] = useState(false);
+  const [membershipHistory, setMembershipHistory] = useState<MomenceMembershipInsight[]>([]);
+  const [loadingMembershipHistory, setLoadingMembershipHistory] = useState(false);
+  const [transactionId, setTransactionId] = useState('');
+  const [reportCards, setReportCards] = useState<MomenceReportCard[]>([]);
+  const [loadingReportCards, setLoadingReportCards] = useState(false);
+  const [showCreateReportCard, setShowCreateReportCard] = useState(false);
+  const [newReportCardTitle, setNewReportCardTitle] = useState('');
+  const [runningReportCardId, setRunningReportCardId] = useState('');
 
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
@@ -271,6 +298,60 @@ export const StandaloneMomencePanel: React.FC = () => {
     }
   }, []);
 
+  const loadReportCards = useCallback(async () => {
+    setLoadingReportCards(true);
+    setError(null);
+    try {
+      setReportCards(await listMomenceReportCards());
+    } catch (event) {
+      setError(event instanceof Error ? event.message : 'Unable to load saved Momence report cards.');
+    } finally {
+      setLoadingReportCards(false);
+    }
+  }, []);
+
+  const handleCreateReportCard = async () => {
+    if (!newReportCardTitle.trim()) {
+      setError('Give the report card a title.');
+      return;
+    }
+    setActionLoading('create-report-card');
+    setError(null);
+    try {
+      const parameters = parseJsonObject(reportJson);
+      await createMomenceReportCard(newReportCardTitle, parameters);
+      setNotice('Report card saved.');
+      setShowCreateReportCard(false);
+      setNewReportCardTitle('');
+      await loadReportCards();
+    } catch (event) {
+      setError(event instanceof Error ? event.message : 'Unable to save report card.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRunReportCard = async (card: MomenceReportCard) => {
+    setRunningReportCardId(card.id);
+    setError(null);
+    try {
+      const updated = await runMomenceReportCard(card);
+      setReportCards((previous) => previous.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (event) {
+      setError(event instanceof Error ? event.message : 'Unable to run report card.');
+    } finally {
+      setRunningReportCardId('');
+    }
+  };
+
+  const handleDeleteReportCard = async (card: MomenceReportCard) => {
+    const didRun = await confirmed(`Delete report card "${card.title}"?`, () => deleteMomenceReportCard(card.id));
+    if (didRun) {
+      setNotice('Report card deleted.');
+      await loadReportCards();
+    }
+  };
+
   const loadContext = useCallback(async () => {
     if (!selectedMember && !selectedSession) {
       setData(emptyState);
@@ -306,6 +387,10 @@ export const StandaloneMomencePanel: React.FC = () => {
   }, [activeView, appointments.length, loadOperations, sales.length]);
 
   useEffect(() => {
+    if (activeView === 'operations' && reportCards.length === 0) void loadReportCards();
+  }, [activeView, loadReportCards, reportCards.length]);
+
+  useEffect(() => {
     void loadContext();
   }, [loadContext]);
 
@@ -325,6 +410,62 @@ export const StandaloneMomencePanel: React.FC = () => {
       setProfilePhone(selectedMember.phoneNumber || '');
     }
   }, [data.member, selectedMember]);
+
+  useEffect(() => {
+    setShowMembershipHistory(false);
+    setMembershipHistory([]);
+  }, [selectedMember?.id]);
+
+  const toggleMembershipHistory = async () => {
+    if (showMembershipHistory) {
+      setShowMembershipHistory(false);
+      return;
+    }
+    if (!selectedMember) return;
+    setShowMembershipHistory(true);
+    if (membershipHistory.length > 0) return;
+    setLoadingMembershipHistory(true);
+    setError(null);
+    try {
+      const rows = await getMomenceMemberMembershipHistory(selectedMember.id);
+      setMembershipHistory(rows.map(mapMomenceMembershipToInsight));
+    } catch (event) {
+      setError(event instanceof Error ? event.message : 'Unable to load membership history.');
+    } finally {
+      setLoadingMembershipHistory(false);
+    }
+  };
+
+  const handleCreateMember = async () => {
+    if (!newMemberFirstName.trim() || !newMemberLastName.trim()) {
+      setError('First and last name are required to create a Momence member.');
+      return;
+    }
+    setActionLoading('create-member');
+    setError(null);
+    setNotice(null);
+    try {
+      const didRun = await confirmed(`Create Momence member ${newMemberFirstName} ${newMemberLastName}?`, () => createMomenceMember({
+        firstName: newMemberFirstName,
+        lastName: newMemberLastName,
+        email: newMemberEmail || undefined,
+        phoneNumber: newMemberPhone || undefined,
+      }));
+      if (didRun) {
+        setNotice('Momence member created.');
+        setShowCreateMember(false);
+        setNewMemberFirstName('');
+        setNewMemberLastName('');
+        setNewMemberEmail('');
+        setNewMemberPhone('');
+        await loadMembers();
+      }
+    } catch (event) {
+      setError(event instanceof Error ? event.message : 'Unable to create Momence member.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const selectedMemberTagIds = useMemo(
     () => new Set((data.member?.customerTags || []).map((tag) => String(tag.id))),
@@ -386,7 +527,10 @@ export const StandaloneMomencePanel: React.FC = () => {
             onClick={() => {
               void loadMembers();
               void loadSessions();
-              if (activeView === 'operations') void loadOperations();
+              if (activeView === 'operations') {
+                void loadOperations();
+                void loadReportCards();
+              }
               void loadContext();
             }}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition hover:bg-muted"
@@ -434,7 +578,24 @@ export const StandaloneMomencePanel: React.FC = () => {
                   <option value="all">All members</option>
                   <option value="with-active-membership">Active membership</option>
                 </select>
+                <ActionBtn tone="neutral" onClick={() => setShowCreateMember((value) => !value)}>
+                  <Plus className="h-3 w-3" /> New member
+                </ActionBtn>
               </Toolbar>
+              {showCreateMember && (
+                <div className="border-b border-border bg-muted px-4 py-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={newMemberFirstName} onChange={(event) => setNewMemberFirstName(event.target.value)} placeholder="First name" className="h-9 rounded-lg border border-border bg-card px-2 text-xs outline-none" />
+                    <input value={newMemberLastName} onChange={(event) => setNewMemberLastName(event.target.value)} placeholder="Last name" className="h-9 rounded-lg border border-border bg-card px-2 text-xs outline-none" />
+                    <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email (optional)" className="h-9 rounded-lg border border-border bg-card px-2 text-xs outline-none" />
+                    <input value={newMemberPhone} onChange={(event) => setNewMemberPhone(event.target.value)} placeholder="Phone (optional)" className="h-9 rounded-lg border border-border bg-card px-2 text-xs outline-none" />
+                  </div>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <ActionBtn tone="neutral" onClick={() => setShowCreateMember(false)}>Cancel</ActionBtn>
+                    <ActionBtn loading={actionLoading === 'create-member'} onClick={handleCreateMember}>Create member</ActionBtn>
+                  </div>
+                </div>
+              )}
               <MemberTable
                 members={members}
                 selectedId={selectedMember?.id}
@@ -456,9 +617,9 @@ export const StandaloneMomencePanel: React.FC = () => {
                   className="h-9 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-muted-foreground outline-none"
                 >
                   <option value="private">Private / hosted</option>
-                  <option value="class">Class</option>
+                  <option value="fitness">Class</option>
                   <option value="course">Course</option>
-                  <option value="appointment">Appointment</option>
+                  <option value="special-event">Special event</option>
                 </select>
               </Toolbar>
               <SessionTable
@@ -490,6 +651,22 @@ export const StandaloneMomencePanel: React.FC = () => {
               actionLoading={actionLoading}
               runJsonOperation={runJsonOperation}
               onRefresh={loadOperations}
+              transactionId={transactionId}
+              setTransactionId={setTransactionId}
+              onGetTransaction={() => runJsonOperation('get-transaction', 'Look up this Momence payment transaction?', async () => {
+                const result = await getMomencePaymentTransaction(transactionId.trim());
+                setOperationResult(JSON.stringify(result, null, 2));
+              })}
+              reportCards={reportCards}
+              loadingReportCards={loadingReportCards}
+              showCreateReportCard={showCreateReportCard}
+              setShowCreateReportCard={setShowCreateReportCard}
+              newReportCardTitle={newReportCardTitle}
+              setNewReportCardTitle={setNewReportCardTitle}
+              runningReportCardId={runningReportCardId}
+              onCreateReportCard={handleCreateReportCard}
+              onRunReportCard={handleRunReportCard}
+              onDeleteReportCard={handleDeleteReportCard}
               onCreateReport={() => runJsonOperation('create-report', 'Create this Momence report run?', async () => {
                 const result = await createMomenceReportRun(parseJsonObject(reportJson));
                 setOperationResult(JSON.stringify(result, null, 2));
@@ -546,6 +723,10 @@ export const StandaloneMomencePanel: React.FC = () => {
               setMoneyCreditsLeft={setMoneyCreditsLeft}
               actionLoading={actionLoading}
               runAction={runAction}
+              showMembershipHistory={showMembershipHistory}
+              loadingMembershipHistory={loadingMembershipHistory}
+              membershipHistory={membershipHistory}
+              onToggleMembershipHistory={toggleMembershipHistory}
             />
           )}
         </div>
@@ -660,9 +841,22 @@ const OperationsPanel: React.FC<{
   actionLoading: string | null;
   runJsonOperation: (key: string, message: string, action: () => Promise<unknown>) => Promise<void>;
   onRefresh: () => Promise<void>;
+  transactionId: string;
+  setTransactionId: (value: string) => void;
+  onGetTransaction: () => void;
   onCreateReport: () => void;
   onGetReport: () => void;
   onCheckoutOperation: () => void;
+  reportCards: MomenceReportCard[];
+  loadingReportCards: boolean;
+  showCreateReportCard: boolean;
+  setShowCreateReportCard: (value: boolean) => void;
+  newReportCardTitle: string;
+  setNewReportCardTitle: (value: string) => void;
+  runningReportCardId: string;
+  onCreateReportCard: () => void;
+  onRunReportCard: (card: MomenceReportCard) => void;
+  onDeleteReportCard: (card: MomenceReportCard) => void;
 }> = ({
   sales,
   appointments,
@@ -678,9 +872,22 @@ const OperationsPanel: React.FC<{
   operationResult,
   actionLoading,
   onRefresh,
+  transactionId,
+  setTransactionId,
+  onGetTransaction,
   onCreateReport,
   onGetReport,
   onCheckoutOperation,
+  reportCards,
+  loadingReportCards,
+  showCreateReportCard,
+  setShowCreateReportCard,
+  newReportCardTitle,
+  setNewReportCardTitle,
+  runningReportCardId,
+  onCreateReportCard,
+  onRunReportCard,
+  onDeleteReportCard,
 }) => (
   <div className="space-y-4 p-4">
     <div className="flex items-center justify-between gap-3">
@@ -721,7 +928,79 @@ const OperationsPanel: React.FC<{
       </div>
     </div>
 
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle icon={<FileText className="h-3.5 w-3.5" />} title="Dashboard report cards" count={reportCards.length} />
+        <div className="flex items-center gap-2">
+          <ActionBtn tone="neutral" loading={loadingReportCards} onClick={() => setShowCreateReportCard(!showCreateReportCard)}>
+            {showCreateReportCard ? 'Cancel' : 'Save current JSON as card'}
+          </ActionBtn>
+        </div>
+      </div>
+      <div className="mb-1 text-xs text-muted-foreground">
+        Save a report configuration once, then re-run it on demand instead of re-typing JSON every time.
+      </div>
+      {showCreateReportCard && (
+        <div className="mb-3 flex flex-wrap gap-2 rounded-xl border border-dashed border-border bg-muted p-3">
+          <input
+            value={newReportCardTitle}
+            onChange={(event) => setNewReportCardTitle(event.target.value)}
+            placeholder="Card title, e.g. Monthly total sales"
+            className="h-9 flex-1 rounded-lg border border-border bg-card px-2 text-xs outline-none"
+          />
+          <ActionBtn loading={actionLoading === 'create-report-card'} onClick={onCreateReportCard}>
+            Save card
+          </ActionBtn>
+          <div className="w-full text-[11px] text-muted-foreground">Uses the JSON currently in the "Report runs" box below.</div>
+        </div>
+      )}
+      <div className="space-y-2">
+        {reportCards.map((card) => (
+          <div key={card.id} className="rounded-xl border border-border bg-muted p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-foreground">{card.title}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                  {card.lastRunAt ? `Last run ${formatDate(card.lastRunAt)} · ${card.lastStatus || 'unknown'}` : 'Never run'}
+                </div>
+                {card.lastError && <div className="mt-0.5 text-[11px] text-red-600">{card.lastError}</div>}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <ActionBtn tone="neutral" loading={runningReportCardId === card.id} onClick={() => onRunReportCard(card)}>
+                  Run now
+                </ActionBtn>
+                <ActionBtn tone="danger" onClick={() => onDeleteReportCard(card)}>Delete</ActionBtn>
+              </div>
+            </div>
+            {card.lastResult != null && (
+              <pre className="mt-2 max-h-40 overflow-auto rounded-lg border border-border bg-slate-950 p-2 text-[11px] text-slate-100">
+                {JSON.stringify(card.lastResult, null, 2)}
+              </pre>
+            )}
+          </div>
+        ))}
+        {reportCards.length === 0 && !loadingReportCards && (
+          <div className="text-xs text-muted-foreground">No saved report cards yet.</div>
+        )}
+      </div>
+    </div>
+
     <div className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <SectionTitle icon={<CreditCard className="h-3.5 w-3.5" />} title="Payment transaction lookup" />
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={transactionId}
+            onChange={(event) => setTransactionId(event.target.value)}
+            placeholder="Transaction ID"
+            className="h-9 w-40 rounded-lg border border-border px-2 text-xs outline-none"
+          />
+          <ActionBtn tone="neutral" disabled={!transactionId.trim()} loading={actionLoading === 'get-transaction'} onClick={onGetTransaction}>
+            Look up transaction
+          </ActionBtn>
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-border bg-card p-4">
         <SectionTitle icon={<FileText className="h-3.5 w-3.5" />} title="Report runs" />
         <textarea
@@ -803,6 +1082,10 @@ const DetailPane: React.FC<{
   setMoneyCreditsLeft: (value: string) => void;
   actionLoading: string | null;
   runAction: (key: string, message: string, action: () => Promise<unknown>) => Promise<void>;
+  showMembershipHistory: boolean;
+  loadingMembershipHistory: boolean;
+  membershipHistory: MomenceMembershipInsight[];
+  onToggleMembershipHistory: () => void;
 }> = ({
   selectedMember,
   selectedSession,
@@ -831,6 +1114,10 @@ const DetailPane: React.FC<{
   setMoneyCreditsLeft,
   actionLoading,
   runAction,
+  showMembershipHistory,
+  loadingMembershipHistory,
+  membershipHistory,
+  onToggleMembershipHistory,
 }) => {
   if (!selectedMember && !selectedSession) {
     return (
@@ -892,16 +1179,42 @@ const DetailPane: React.FC<{
         </div>
       )}
 
-      {selectedMember && data.summary.membershipOverview.memberships.length > 0 && (
+      {selectedMember && (data.summary.membershipOverview.memberships.length > 0 || showMembershipHistory) && (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <SectionTitle icon={<BadgeCheck className="h-3.5 w-3.5" />} title="Memberships" count={data.summary.membershipOverview.memberships.length} />
-          <div className="mb-3 grid grid-cols-3 gap-2">
-            <input type="datetime-local" value={freezeAt} onChange={(event) => setFreezeAt(event.target.value)} className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
-            <input type="datetime-local" value={unfreezeAt} onChange={(event) => setUnfreezeAt(event.target.value)} className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
-            <input value={freezeReason} onChange={(event) => setFreezeReason(event.target.value)} placeholder="Freeze reason" className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
+          <div className="flex items-start justify-between gap-2">
+            <SectionTitle icon={<BadgeCheck className="h-3.5 w-3.5" />} title="Memberships" count={showMembershipHistory ? membershipHistory.length : data.summary.membershipOverview.memberships.length} />
+            <ActionBtn tone="neutral" loading={loadingMembershipHistory} onClick={onToggleMembershipHistory}>
+              {showMembershipHistory ? 'Show active only' : 'Show full history'}
+            </ActionBtn>
           </div>
-          <div className="space-y-2">
-            {data.summary.membershipOverview.memberships.map((membership) => (
+          {showMembershipHistory ? (
+            <div className="space-y-2">
+              {membershipHistory.map((membership) => (
+                <div key={membership.id} className="rounded-xl border border-border bg-muted p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-semibold text-foreground">{membership.name}</div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        {membership.validUntil ? `Valid until ${formatDate(membership.validUntil)}` : 'No expiry captured'}
+                      </div>
+                    </div>
+                    <Pill tone={membership.status === 'Frozen' ? 'amber' : membership.status === 'Expired' ? 'slate' : 'emerald'}>{membership.status}</Pill>
+                  </div>
+                </div>
+              ))}
+              {membershipHistory.length === 0 && !loadingMembershipHistory && (
+                <div className="text-xs text-muted-foreground">No membership history returned.</div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                <input type="datetime-local" value={freezeAt} onChange={(event) => setFreezeAt(event.target.value)} className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
+                <input type="datetime-local" value={unfreezeAt} onChange={(event) => setUnfreezeAt(event.target.value)} className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
+                <input value={freezeReason} onChange={(event) => setFreezeReason(event.target.value)} placeholder="Freeze reason" className="h-9 rounded-lg border border-border px-2 text-xs outline-none" />
+              </div>
+              <div className="space-y-2">
+                {data.summary.membershipOverview.memberships.map((membership) => (
               <div key={membership.id} className="rounded-xl border border-border bg-muted p-3">
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -926,14 +1239,16 @@ const DetailPane: React.FC<{
                       {membership.scheduledUnfreezeAt && <ActionBtn tone="danger" loading={actionLoading === `remove-unfreeze-${membership.id}`} onClick={() => runAction(`remove-unfreeze-${membership.id}`, `Remove scheduled unfreeze for ${membership.name}?`, () => removeScheduledMomenceMembershipUnfreeze(selectedMember.id, membership.id))}>Remove scheduled</ActionBtn>}
                     </>
                   )}
-                  <ActionBtn tone="neutral" disabled={!eventCreditsLeft && !moneyCreditsLeft} loading={actionLoading === `credits-${membership.id}`} onClick={() => runAction(`credits-${membership.id}`, `Update credits for ${membership.name}?`, () => updateMomenceMembershipCredits(selectedMember.id, membership.id, {
-                    eventCreditsLeft: eventCreditsLeft ? Number(eventCreditsLeft) : undefined,
-                    moneyCreditsLeft: moneyCreditsLeft ? Number(moneyCreditsLeft) : undefined,
-                  }))}>Update credits</ActionBtn>
+                    <ActionBtn tone="neutral" disabled={!eventCreditsLeft && !moneyCreditsLeft} loading={actionLoading === `credits-${membership.id}`} onClick={() => runAction(`credits-${membership.id}`, `Update credits for ${membership.name}?`, () => updateMomenceMembershipCredits(selectedMember.id, membership.id, {
+                      eventCreditsLeft: eventCreditsLeft ? Number(eventCreditsLeft) : undefined,
+                      moneyCreditsLeft: moneyCreditsLeft ? Number(moneyCreditsLeft) : undefined,
+                    }))}>Update credits</ActionBtn>
+                  </div>
                 </div>
+              ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 

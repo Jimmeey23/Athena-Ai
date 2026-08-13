@@ -181,6 +181,25 @@ export interface MomenceAppointmentReservation {
   };
 }
 
+export interface MomencePaymentTransaction {
+  id: number;
+  createdAt?: string;
+  status?: string;
+  amountInCurrency?: number;
+  currency?: string;
+  paymentMethod?: string;
+  cardLast4?: string | null;
+  member?: {
+    id?: number;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  };
+  sale?: {
+    id?: number;
+  };
+}
+
 export interface MomenceReportRun {
   id?: number;
   status?: string;
@@ -238,7 +257,7 @@ export interface MomenceMembershipInsight {
   id: string;
   name: string;
   type?: string;
-  status: 'Active' | 'Frozen';
+  status: 'Active' | 'Frozen' | 'Expired';
   creditsLabel?: string;
   moneyCreditsLabel?: string;
   usageLabel?: string;
@@ -414,6 +433,31 @@ function formatDeclinedRenewalLabel(membership: MomenceMembership): string | und
     `Renewal declined ${membership.declinedRenewal.declinedAt}`,
     membership.declinedRenewal.cardLast4 ? `card ${membership.declinedRenewal.cardLast4}` : undefined,
   ]);
+}
+
+function membershipStatus(membership: MomenceMembership): 'Active' | 'Frozen' | 'Expired' {
+  if (membership.isFrozen) return 'Frozen';
+  const endTime = membership.endDate ? Date.parse(membership.endDate) : NaN;
+  if (Number.isFinite(endTime) && endTime < Date.now()) return 'Expired';
+  return 'Active';
+}
+
+export function mapMomenceMembershipToInsight(membership: MomenceMembership): MomenceMembershipInsight {
+  return {
+    id: String(membership.id),
+    name: membership.membership?.name || membership.type || `Membership #${membership.id}`,
+    type: membership.type,
+    status: membershipStatus(membership),
+    creditsLabel: formatCreditLabel(membership),
+    moneyCreditsLabel: formatMoneyCreditLabel(membership),
+    usageLabel: formatUsageLabel(membership),
+    usagePeriodLabel: formatUsagePeriodLabel(membership),
+    validUntil: membership.endDate,
+    freezeLabel: formatFreezeLabel(membership),
+    scheduledFreezeAt: membership.freeze?.scheduledFreezeAt,
+    scheduledUnfreezeAt: membership.freeze?.unfreezedScheduledAt,
+    declinedRenewalLabel: formatDeclinedRenewalLabel(membership),
+  };
 }
 
 function sessionName(session?: MomenceSession | null): string {
@@ -650,21 +694,7 @@ export function buildMomenceInsightSummary(input: MomenceInsightInput): MomenceI
       }
     : undefined;
 
-  const membershipInsights = memberships.map((membership) => ({
-    id: String(membership.id),
-    name: membership.membership?.name || membership.type || `Membership #${membership.id}`,
-    type: membership.type,
-    status: membership.isFrozen ? 'Frozen' as const : 'Active' as const,
-    creditsLabel: formatCreditLabel(membership),
-    moneyCreditsLabel: formatMoneyCreditLabel(membership),
-    usageLabel: formatUsageLabel(membership),
-    usagePeriodLabel: formatUsagePeriodLabel(membership),
-    validUntil: membership.endDate,
-    freezeLabel: formatFreezeLabel(membership),
-    scheduledFreezeAt: membership.freeze?.scheduledFreezeAt,
-    scheduledUnfreezeAt: membership.freeze?.unfreezedScheduledAt,
-    declinedRenewalLabel: formatDeclinedRenewalLabel(membership),
-  }));
+  const membershipInsights = memberships.map(mapMomenceMembershipToInsight);
 
   const sortedBookings = [...memberBookings].sort((a, b) => {
     const bTime = getBookingTime(b);
@@ -930,6 +960,18 @@ export async function getMomenceMember(memberId: string | number) {
   return callMomence<MomenceMemberDetail>(`/host/members/${memberId}`);
 }
 
+export async function createMomenceMember(input: { firstName: string; lastName: string; email?: string; phoneNumber?: string }) {
+  return callMomence<MomenceMemberDetail>('/host/members', {
+    method: 'POST',
+    body: {
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      ...(input.email?.trim() ? { email: input.email.trim() } : {}),
+      ...(input.phoneNumber?.trim() ? { phoneNumber: input.phoneNumber.trim() } : {}),
+    },
+  });
+}
+
 export async function updateMomenceMemberName(memberId: string | number, firstName: string, lastName: string) {
   return callMomence(`/host/members/${memberId}/name`, {
     method: 'PUT',
@@ -1022,6 +1064,70 @@ export async function getMomenceMemberMemberships(memberId: string | number) {
     { params: { page: 0, pageSize: 20 } }
   );
   return payloadFrom(response);
+}
+
+export async function getMomenceMemberMembershipHistory(memberId: string | number) {
+  const response = await callMomence<PaginatedMomenceResponse<MomenceMembership>>(
+    `/host/members/${memberId}/bought-memberships`,
+    { params: { page: 0, pageSize: 50, sortBy: 'startDate', sortOrder: 'DESC' } }
+  );
+  return payloadFrom(response);
+}
+
+export async function getMomencePaymentTransaction(transactionId: string | number) {
+  return callMomence<MomencePaymentTransaction>(`/host/payment-transactions/${transactionId}`);
+}
+
+export interface MomenceAttendanceStats {
+  sessionsCount: number;
+  averageFillRatePercent: number;
+  totalBooked: number;
+  totalCapacity: number;
+}
+
+export async function getMomenceTrainerAttendanceStats(
+  trainerName: string,
+  options: { studio?: string; fromISO: string; toISO: string }
+): Promise<MomenceAttendanceStats> {
+  const normalizedTrainer = normalizeSearchValue(trainerName);
+  const normalizedStudio = options.studio ? normalizeSearchValue(options.studio) : '';
+  const pageSize = 100;
+  const maxPages = 8;
+  const sessions: MomenceSession[] = [];
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const response = await callMomence<PaginatedMomenceResponse<MomenceSession>>('/host/sessions', {
+      params: {
+        page,
+        pageSize,
+        sortBy: 'startsAt',
+        sortOrder: 'DESC',
+        includeCancelled: false,
+        startAfter: options.fromISO,
+        startBefore: options.toISO,
+      },
+    });
+    const items = payloadFrom(response);
+    sessions.push(...items);
+    if (items.length < pageSize) break;
+  }
+
+  const filtered = sessions.filter((session) => {
+    const teacherName = compact([session.teacher?.firstName, session.teacher?.lastName]);
+    if (normalizeSearchValue(teacherName) !== normalizedTrainer) return false;
+    if (normalizedStudio && normalizeSearchValue(session.inPersonLocation?.name || '') !== normalizedStudio) return false;
+    return true;
+  });
+
+  const totalCapacity = filtered.reduce((sum, session) => sum + (session.capacity || 0), 0);
+  const totalBooked = filtered.reduce((sum, session) => sum + (session.bookingCount || 0), 0);
+
+  return {
+    sessionsCount: filtered.length,
+    averageFillRatePercent: totalCapacity ? Math.round((totalBooked / totalCapacity) * 100) : 0,
+    totalBooked,
+    totalCapacity,
+  };
 }
 
 export async function getMomenceMemberBookings(memberId: string | number) {

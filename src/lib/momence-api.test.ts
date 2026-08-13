@@ -4,7 +4,11 @@ import { resolve } from 'node:path';
 import { backendSupabase } from './backend-supabase';
 import {
   buildMomenceInsightSummary,
+  createMomenceMember,
   freezeMomenceMembership,
+  getMomenceMemberMembershipHistory,
+  getMomencePaymentTransaction,
+  getMomenceTrainerAttendanceStats,
   listMomenceMembers,
   listMomenceHostMembershipOptions,
   loadMomenceTicketContext,
@@ -220,6 +224,94 @@ describe('Momence membership freeze actions', () => {
           unfreezeType: 'scheduled',
           unfreezeAt: '2026-06-15T00:00:00.000Z',
         },
+      }),
+    }));
+  });
+});
+
+describe('Momence member enrichment endpoints', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_MOMENCE_FUNCTION_URL', 'http://localhost/momence-search');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('creates a member through the host members endpoint', async () => {
+    await createMomenceMember({ firstName: 'Asha', lastName: 'Rao', email: 'asha@example.com', phoneNumber: '+919900000000' });
+
+    expect(fetch).toHaveBeenCalledWith('http://localhost/momence-search', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        path: '/host/members',
+        method: 'POST',
+        params: {},
+        body: {
+          firstName: 'Asha',
+          lastName: 'Rao',
+          email: 'asha@example.com',
+          phoneNumber: '+919900000000',
+        },
+      }),
+    }));
+  });
+
+  it('omits blank optional fields when creating a member', async () => {
+    await createMomenceMember({ firstName: 'Asha', lastName: 'Rao' });
+
+    expect(fetch).toHaveBeenCalledWith('http://localhost/momence-search', expect.objectContaining({
+      body: JSON.stringify({
+        path: '/host/members',
+        method: 'POST',
+        params: {},
+        body: { firstName: 'Asha', lastName: 'Rao' },
+      }),
+    }));
+  });
+
+  it('loads the full bought-membership history without the active-only filter', async () => {
+    await getMomenceMemberMembershipHistory('42');
+
+    expect(fetch).toHaveBeenCalledWith('http://localhost/momence-search', expect.objectContaining({
+      body: JSON.stringify({
+        path: '/host/members/42/bought-memberships',
+        method: 'GET',
+        params: { page: 0, pageSize: 50, sortBy: 'startDate', sortOrder: 'DESC' },
+        body: undefined,
+      }),
+    }));
+  });
+
+  it('computes attendance stats for a trainer filtered by studio and matches teacher/studio case-insensitively', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      payload: [
+        { id: 1, capacity: 20, bookingCount: 15, teacher: { firstName: 'Anisha', lastName: 'Shah' }, inPersonLocation: { name: 'Supreme HQ, Bandra' } },
+        { id: 2, capacity: 20, bookingCount: 20, teacher: { firstName: 'anisha', lastName: 'shah' }, inPersonLocation: { name: 'Other Studio' } },
+        { id: 3, capacity: 10, bookingCount: 10, teacher: { firstName: 'Someone', lastName: 'Else' }, inPersonLocation: { name: 'Supreme HQ, Bandra' } },
+      ],
+    }), { status: 200 })));
+
+    const stats = await getMomenceTrainerAttendanceStats('Anisha Shah', {
+      studio: 'Supreme HQ, Bandra',
+      fromISO: '2026-08-01T00:00:00.000Z',
+      toISO: '2026-08-31T23:59:59.000Z',
+    });
+
+    expect(stats).toEqual({ sessionsCount: 1, averageFillRatePercent: 75, totalBooked: 15, totalCapacity: 20 });
+  });
+
+  it('fetches a payment transaction by id', async () => {
+    await getMomencePaymentTransaction('987');
+
+    expect(fetch).toHaveBeenCalledWith('http://localhost/momence-search', expect.objectContaining({
+      body: JSON.stringify({
+        path: '/host/payment-transactions/987',
+        method: 'GET',
+        params: {},
+        body: undefined,
       }),
     }));
   });

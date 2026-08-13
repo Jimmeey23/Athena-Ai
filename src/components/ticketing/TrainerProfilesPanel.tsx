@@ -32,6 +32,7 @@ import {
   Printer,
   Sun,
   Trash2,
+  Wand2,
   X,
 } from 'lucide-react';
 import {
@@ -68,6 +69,7 @@ import { trainerImageUrl, trainerInitials } from '@/lib/trainer-images';
 import { buildTrainerFallbackSummary } from '@/lib/trainer-summary';
 import { useTickets } from './useTickets';
 import { invokeTicketingFunction } from '@/lib/ticketing-functions';
+import { getMomenceTrainerAttendanceStats } from '@/lib/momence-api';
 import { useBackendAuth } from '@/contexts/useBackendAuth';
 
 function parseFlexibleDate(value?: string): Date | null {
@@ -2483,6 +2485,8 @@ const TrainerReviewFormModal: React.FC<{
   const [scores, setScores] = useState<TrainerEvaluationScore[]>(() => scoresForTemplate(initialTemplate, review?.scores || []));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceMessage, setAttendanceMessage] = useState('');
 
   const handleTemplateChange = (next: TrainerReviewTemplate) => {
     setTemplate(next);
@@ -2498,6 +2502,41 @@ const TrainerReviewFormModal: React.FC<{
   const totalWeightage = scores.reduce((sum, item) => sum + item.weightage, 0);
   const totalScore = scores.reduce((sum, item) => sum + item.score, 0);
   const scorePercent = totalWeightage ? Math.round((totalScore / totalWeightage) * 100) : 0;
+  const attendanceRow = scores.find((item) => /attendance|fill rate/i.test(item.category));
+
+  const pullAttendanceFromMomence = async () => {
+    if (!attendanceRow) {
+      setAttendanceMessage('This template has no attendance/fill-rate criterion to auto-fill.');
+      return;
+    }
+    if (!trainer.trim()) {
+      setAttendanceMessage('Pick an instructor first.');
+      return;
+    }
+    setAttendanceLoading(true);
+    setAttendanceMessage('');
+    try {
+      const periodDate = parseFlexibleDate(reviewPeriod);
+      const fromDate = periodDate ? new Date(periodDate.getFullYear(), periodDate.getMonth(), 1) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const toDate = periodDate ? new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0, 23, 59, 59) : new Date();
+      const stats = await getMomenceTrainerAttendanceStats(trainer, {
+        studio: studio || undefined,
+        fromISO: fromDate.toISOString(),
+        toISO: toDate.toISOString(),
+      });
+      if (stats.sessionsCount === 0) {
+        setAttendanceMessage('No matching Momence sessions found for this instructor/studio/period.');
+        return;
+      }
+      const suggestedScore = Math.round((attendanceRow.weightage * stats.averageFillRatePercent) / 100);
+      updateScore(attendanceRow.category, suggestedScore, attendanceRow.weightage);
+      setAttendanceMessage(`${stats.averageFillRatePercent}% avg fill rate across ${stats.sessionsCount} session${stats.sessionsCount === 1 ? '' : 's'} (${stats.totalBooked}/${stats.totalCapacity} booked) → set ${attendanceRow.category} to ${suggestedScore}/${attendanceRow.weightage}.`);
+    } catch (err) {
+      setAttendanceMessage(err instanceof Error ? err.message : 'Unable to pull Momence attendance data.');
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -2594,6 +2633,23 @@ const TrainerReviewFormModal: React.FC<{
                 <span>Weighted scorecard</span>
                 <span className="text-foreground">{totalScore.toFixed(1)} / {totalWeightage} ({scorePercent}%)</span>
               </div>
+              {attendanceRow && (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-dashed border-blue-200 bg-blue-50 px-2.5 py-1.5">
+                  <span className="text-[11px] text-blue-700">Auto-fill {attendanceRow.category} from Momence session fill rate.</span>
+                  <button
+                    type="button"
+                    onClick={pullAttendanceFromMomence}
+                    disabled={attendanceLoading}
+                    className="flex shrink-0 items-center gap-1 rounded-lg border border-blue-300 bg-card px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  >
+                    {attendanceLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                    Pull from Momence
+                  </button>
+                </div>
+              )}
+              {attendanceMessage && (
+                <div className="mb-2 text-[11px] text-muted-foreground">{attendanceMessage}</div>
+              )}
               <div className="space-y-1.5 rounded-xl border border-border p-2.5">
                 {scores.map((item) => (
                   <div key={item.category} className="flex items-center gap-2">

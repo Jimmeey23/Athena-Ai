@@ -11,6 +11,7 @@ type SearchBody = {
 
 const ALLOWED_REQUESTS: Array<{ method: string; pattern: RegExp }> = [
   { method: 'GET', pattern: /^\/host\/members$/ },
+  { method: 'POST', pattern: /^\/host\/members$/ },
   { method: 'GET', pattern: /^\/host\/members\/\d+$/ },
   { method: 'PUT', pattern: /^\/host\/members\/\d+\/name$/ },
   { method: 'PUT', pattern: /^\/host\/members\/\d+\/email$/ },
@@ -18,6 +19,8 @@ const ALLOWED_REQUESTS: Array<{ method: string; pattern: RegExp }> = [
   { method: 'DELETE', pattern: /^\/host\/members\/\d+\/phone-number$/ },
   { method: 'GET', pattern: /^\/host\/members\/\d+\/appointments$/ },
   { method: 'GET', pattern: /^\/host\/members\/\d+\/bought-memberships\/active$/ },
+  { method: 'GET', pattern: /^\/host\/members\/\d+\/bought-memberships$/ },
+  { method: 'GET', pattern: /^\/host\/payment-transactions\/\d+$/ },
   { method: 'PUT', pattern: /^\/host\/members\/\d+\/bought-memberships\/\d+\/credits$/ },
   { method: 'GET', pattern: /^\/host\/members\/\d+\/notes$/ },
   { method: 'GET', pattern: /^\/host\/members\/\d+\/sessions$/ },
