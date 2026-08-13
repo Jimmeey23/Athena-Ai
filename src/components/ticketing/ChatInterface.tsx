@@ -1311,7 +1311,7 @@ function buildTrainerEvaluationDraft(input: TrainerEvaluationInput): DraftTicket
     assignedTo: 'Trainer Profile',
     department: 'Training & Client Experience',
     tags: ['trainer-profile', 'instructor-evaluation', 'profile-only', input.template.toLowerCase()],
-    sentiment: scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Concern',
+    sentiment: scorePercent >= 80 ? 'Positive' : scorePercent >= 65 ? 'Neutral' : 'Negative',
     conversationSummary: [
       `Instructor evaluation drafted for ${input.trainer} (${input.template}).`,
       `Weighted score: ${scorePercent}% · ${trainerEvaluationBand(scorePercent)}.`,

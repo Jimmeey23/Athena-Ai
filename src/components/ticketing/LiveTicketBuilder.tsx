@@ -72,7 +72,7 @@ function priorityColors(priority?: string) {
 
 function sentimentColors(sentiment?: string) {
   if (sentiment === 'Positive') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-  if (sentiment === 'Concern' || sentiment === 'Negative') return 'bg-red-100 text-red-700 border-red-200';
+  if (sentiment === 'Negative' || sentiment === 'Angry') return 'bg-red-100 text-red-700 border-red-200';
   if (sentiment === 'Neutral') return 'bg-slate-100 text-muted-foreground border-border';
   return 'bg-slate-100 text-muted-foreground border-border';
 }

@@ -253,6 +253,6 @@ export function buildTrainerEvaluationTicket(input: TrainerEvaluationInput, reco
     classType: input.classType || null,
     assignedTo: 'Trainer Profile',
     tags: ['trainer-profile', 'instructor-evaluation', 'profile-only', input.template.toLowerCase()],
-    sentiment: review.scorePercent >= 80 ? 'Positive' : review.scorePercent >= 65 ? 'Neutral' : 'Concern',
+    sentiment: review.scorePercent >= 80 ? 'Positive' : review.scorePercent >= 65 ? 'Neutral' : 'Negative',
   };
 }
